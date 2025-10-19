@@ -1,0 +1,10 @@
+# VS Code config
+.vscode
+
+# C-Lion config
+.idea
+
+# Project build
+*.o
+*.d
+Ember*

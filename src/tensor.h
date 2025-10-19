@@ -1,0 +1,70 @@
+#pragma once
+
+#include "types.h"
+
+namespace Ember {
+    // Tensor recursive case
+    template<usize dimensionality>
+    struct Tensor {
+        static_assert(dimensionality > 1, "dimensionality must be >= 1");
+
+        std::vector<Tensor<dimensionality - 1>> data;
+
+        Tensor() = default;
+
+        // Resize with a variadic pack of sizes, e.g. tensor.resize(3, 4, 5);
+        template<typename... Args>
+        void resize(const usize firstDim, Args... restDims) {
+            static_assert(sizeof...(Args) == dimensionality - 1,
+                "Number of arguments to resize() must match tensor dimensionality");
+
+            data.resize(firstDim);
+            for (auto& subTensor : data)
+                subTensor.resize(restDims...);
+        }
+
+        usize size() const { return data.size(); }
+
+        auto begin() { return data.begin(); }
+        auto end() { return data.end(); }
+        auto begin() const { return data.begin(); }
+        auto end() const { return data.end(); }
+
+        Tensor<dimensionality - 1>& operator[](const usize idx) { return data[idx]; }
+        const Tensor<dimensionality - 1>& operator[](const usize idx) const { return data[idx]; }
+
+        Tensor& operator=(const Tensor& other) {
+            data = other.data;
+            return *this;
+        }
+    };
+
+    // Tensor base case
+    template<>
+    struct Tensor<1> {
+        std::vector<float> data;
+
+        Tensor() = default;
+        Tensor(const std::vector<float> &data) : data(data) {}
+        explicit Tensor(const usize size) : data(size) {}
+
+        void resize(const usize size) {
+            data.resize(size);
+        }
+
+        usize size() const { return data.size(); }
+
+        auto begin() { return data.begin(); }
+        auto end() { return data.end(); }
+        auto begin() const { return data.begin(); }
+        auto end() const { return data.end(); }
+
+        float& operator[](const usize idx) { return data[idx]; }
+        const float& operator[](const usize idx) const { return data[idx]; }
+
+        Tensor& operator=(const Tensor& other) {
+            data = other.data;
+            return *this;
+        }
+    };
+}
