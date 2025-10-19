@@ -1,7 +1,6 @@
 #pragma once
 
 #include "tensor.h"
-#include "../external/fmt/format.h"
 
 namespace Ember {
     namespace internal {

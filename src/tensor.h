@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+#include "../external/fmt/format.h"
+
 namespace Ember {
     // Tensor recursive case
     template<usize dimensionality>
@@ -62,9 +64,17 @@ namespace Ember {
         float& operator[](const usize idx) { return data[idx]; }
         const float& operator[](const usize idx) const { return data[idx]; }
 
-        Tensor& operator=(const Tensor& other) {
-            data = other.data;
-            return *this;
+        Tensor& operator=(const Tensor& other) = default;
+
+        friend std::ostream& operator<<(std::ostream& os, const Tensor<1>& t) {
+            os << "[";
+            for (usize i = 0; i < t.size(); i++) {
+                if (i < t.size() - 1)
+                    os << fmt::format("{}, ", t.data[i]);
+                else
+                    os << fmt::format("{}]", t.data[i]);
+            }
+            return os;
         }
     };
 }
