@@ -18,5 +18,5 @@ int main() {
 
     std::cout << net << std::endl;
 
-    learner.learn(0.01, 2);
+    learner.learn(0.05, 2);
 }

@@ -163,7 +163,7 @@ namespace Ember {
             internal::cursor::up();
             internal::cursor::clear();
             internal::cursor::up();
-            fmt::println("{:>5L}{:>14.5f}{:>13.5f}{:>17.2f}%\n\n", epoch, trainLoss / batchesPerEpoch, testLoss, testAccuracy * 100);
+            fmt::println("{:>5L}{:>14.5f}{:>13.5f}{:>17.2f}%\n\n", epoch, trainLoss / batchesPerEpoch / batchSize, testLoss, testAccuracy * 100);
         }
     }
 }

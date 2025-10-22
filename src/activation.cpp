@@ -21,7 +21,7 @@ namespace Ember {
         Tensor<1> ReLU::backward(const Layer& previous, const Tensor<1>& gradOutput) const {
             Tensor<1> result(gradOutput.size());
             for (usize prev = 0; prev < gradOutput.size(); prev++)
-                result[prev] = previous.values[prev] * internal::activations::derivatives::ReLU(gradOutput[prev]);
+                result[prev] = gradOutput[prev] * internal::activations::derivatives::ReLU(previous.values[prev]);
 
             return result;
         }
