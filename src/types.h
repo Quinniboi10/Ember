@@ -1,10 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <iostream>
 #include <cassert>
 #include <cstdint>
-#include <vector>
 
 namespace Ember {
 #define exitWithMsg(msg, code) \
@@ -24,4 +22,18 @@ std::exit(code); \
     using i8  = int8_t;
 
     using usize = size_t;
+
+    namespace internal::cursor {
+        [[maybe_unused]] inline void clearAll(std::ostream& out = std::cout) { out << "\033[2J\033[H"; }
+        [[maybe_unused]] inline void clear(std::ostream& out = std::cout) { out << "\033[2K\r"; }
+        [[maybe_unused]] inline void clearDown(std::ostream& out = std::cout) { out << "\x1b[J"; }
+        [[maybe_unused]] inline void home(std::ostream& out = std::cout) { out << "\033[H"; }
+        [[maybe_unused]] inline void up(std::ostream& out = std::cout) { out << "\033[A"; }
+        [[maybe_unused]] inline void down(std::ostream& out = std::cout) { out << "\033[B"; }
+        [[maybe_unused]] inline void begin(std::ostream& out = std::cout) { out << "\033[1G"; }
+        [[maybe_unused]] inline void goTo(const usize x, const usize y, std::ostream& out = std::cout) { out << "\033[" << y << ";" << x << "H"; }
+
+        [[maybe_unused]] inline void hide(std::ostream& out = std::cout) { out << "\033[?25l"; }
+        [[maybe_unused]] inline void show(std::ostream& out = std::cout) { out << "\033[?25h"; }
+    }
 }
