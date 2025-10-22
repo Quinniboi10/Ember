@@ -6,6 +6,11 @@
 #include <memory>
 
 namespace Ember {
+    enum class NetworkMode {
+        EVAL,
+        TRAIN
+    };
+
     struct Network {
         std::vector<std::unique_ptr<internal::Layer>> layers;
 
@@ -52,6 +57,8 @@ namespace Ember {
         explicit Network(Args&&... args) {
             _init(true, std::forward<Args>(args)...);
         }
+
+        void setMode(const NetworkMode mode);
 
         void forward(const Tensor<1>& input);
         const Tensor<1>& output() const;

@@ -4,6 +4,8 @@
 
 #include "../external/fmt/format.h"
 
+#include <vector>
+
 namespace Ember {
     // Tensor recursive case
     template<usize dimensionality>
@@ -23,6 +25,11 @@ namespace Ember {
             data.resize(firstDim);
             for (auto& subTensor : data)
                 subTensor.resize(restDims...);
+        }
+
+        void fill(const float value) {
+            for (auto& subTensor : data)
+                subTensor.fill(value);
         }
 
         usize size() const { return data.size(); }
@@ -48,10 +55,14 @@ namespace Ember {
 
         Tensor() = default;
         Tensor(const std::vector<float> &data) : data(data) {}
-        explicit Tensor(const usize size) : data(size) {}
+        explicit Tensor(const usize size, const float def = 0.0f) : data(size, def) {}
 
         void resize(const usize size) {
             data.resize(size);
+        }
+
+        void fill(const float value) {
+            std::fill(data.begin(), data.end(), value);
         }
 
         usize size() const { return data.size(); }
