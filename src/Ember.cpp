@@ -9,7 +9,7 @@ int main() {
         Ember::activations::Softmax()
      );
 
-    Ember::dataloaders::ImageDataLoader dataloader("../datasets/MNIST/", 128, 0.9, 4, 28, 28);
+    Ember::dataloaders::ImageDataLoader dataloader("../datasets/MNIST/", 128, 0.9, 6, 28, 28);
     Ember::optimizers::SGD optimizer(net, 0.9);
 
     Ember::Learner learner(net, dataloader, optimizer, Ember::loss::MeanSquaredError());
@@ -18,5 +18,5 @@ int main() {
 
     std::cout << net << std::endl;
 
-    learner.learn(0.05, 2);
+    learner.learn(0.05, 2, 1);
 }

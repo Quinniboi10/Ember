@@ -13,6 +13,10 @@ namespace Ember {
 
             Tensor<1> backward(const Layer& previous, const Tensor<1>& gradOutput) const override;
 
+            std::unique_ptr<Layer> clone() override {
+                return std::make_unique<ReLU>(*this);
+            }
+
             std::string str() const override {
                 return fmt::format("ReLU - applied to {} features", size);
             }
@@ -22,6 +26,10 @@ namespace Ember {
             void forward(const Layer& previous) override;
 
             Tensor<1> backward(const Layer& previous, const Tensor<1>& gradOutput) const override;
+
+            std::unique_ptr<Layer> clone() override {
+                return std::make_unique<Softmax>(*this);
+            }
 
             std::string str() const override {
                 return fmt::format("Softmax - applied to {} features", size);

@@ -29,7 +29,7 @@ namespace Ember {
 
         // Returns a vector of gradients
         // RETURNS VALUES ORDERED FROM LAST TO FIRST LAYER
-        std::vector<internal::Gradient> backward(const std::vector<float>& target) const;
+        std::vector<internal::Gradient> backward(const Network& net, const std::vector<float>& target) const;
 
         // Apply a gradient to the optimizer
         void applyGradients(const usize batchSize, const std::vector<Tensor<1>>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum);

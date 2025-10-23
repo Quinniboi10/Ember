@@ -65,8 +65,12 @@ namespace Ember {
                     dataFuture.get();
             }
 
-            const std::vector<DataPoint>& batchData() const {
-                return data[currBatch];
+            const DataPoint& batchData(const usize idx) const {
+                return data[currBatch][idx];
+            }
+
+            usize testSetSize() const {
+                return data[currBatch].size();
             }
 
             void swapBuffers() {

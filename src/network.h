@@ -11,10 +11,13 @@ namespace Ember {
         TRAIN
     };
 
+    template <typename T>
+    concept LayerLike = std::derived_from<std::decay_t<T>, internal::Layer>;
+
     struct Network {
         std::vector<std::unique_ptr<internal::Layer>> layers;
 
-        template <typename... Args>
+        template <LayerLike... Args>
         void _init(const bool useXavierInit, Args&&... args) {
             (layers.emplace_back(std::make_unique<std::decay_t<Args>>(std::forward<Args>(args))), ...);
 
@@ -53,7 +56,13 @@ namespace Ember {
             }
         }
 
-        template <typename... Args>
+        Network(const Network& other) {
+            for (const auto& layer : other.layers) {
+                layers.emplace_back(layer->clone());
+            }
+        }
+
+        template <LayerLike... Args>
         explicit Network(Args&&... args) {
             _init(true, std::forward<Args>(args)...);
         }
@@ -62,6 +71,17 @@ namespace Ember {
 
         void forward(const Tensor<1>& input);
         const Tensor<1>& output() const;
+
+        Network& operator=(const Network& other) {
+            if (this != &other) {
+                layers.clear();
+                layers.reserve(other.layers.size());
+                for (const auto& l : other.layers) {
+                    layers.push_back(l->clone());
+                }
+            }
+            return *this;
+        }
 
         friend std::ostream& operator<<(std::ostream& os, const Network& net);
     };

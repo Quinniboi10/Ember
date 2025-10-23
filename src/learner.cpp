@@ -1,11 +1,12 @@
 #include "learner.h"
 #include "progbar.h"
+#include "omp.h"
 
 #include <algorithm>
 
 
 namespace Ember {
-    std::vector<internal::Gradient> Learner::backward(const std::vector<float> &target) const {
+    std::vector<internal::Gradient> Learner::backward(const Network& net, const std::vector<float> &target) const {
         std::vector<internal::Gradient> gradients(net.layers.size());
 
         Tensor<1> error = lossFunc->backward(net.output(), target);
@@ -46,9 +47,10 @@ namespace Ember {
         if (threads == 0)
             threads = std::thread::hardware_concurrency();
         if (threads == 0) {
-            std::cerr << "Failed to detect number of threads. Defaulting to 1" << std::endl;
+            std::cerr << "Failed to detect number of threads" << std::endl;
             threads = 1;
         }
+        fmt::println("Using {} threads", threads);
 
         const u64 batchSize = dataLoader.batchSize;
         const u64 batchesPerEpoch = dataLoader.numSamples / batchSize;
@@ -62,7 +64,7 @@ namespace Ember {
             float loss = 0;
             usize numCorrect = 0;
             dataLoader.loadTestSet();
-            const usize testSize = dataLoader.batchData().size();
+            const usize testSize = dataLoader.testSetSize();
             while (dataLoader.hasNext()) {
                 internal::DataPoint data = dataLoader.next();
                 net.forward(data.input);
@@ -81,15 +83,33 @@ namespace Ember {
         };
 
         // Initialize accumulators
+        std::vector<std::vector<Tensor<1>>> threadWeightGradAccum(threads);
+        std::vector<std::vector<Tensor<1>>> threadBiasGradAccum(threads);
+
         std::vector<Tensor<1>> weightGradAccum(net.layers.size());
         std::vector<Tensor<1>> biasGradAccum(net.layers.size());
+
+        for (auto& accum : threadWeightGradAccum)
+            accum.resize(net.layers.size());
+        for (auto& accum : threadBiasGradAccum)
+            accum.resize(net.layers.size());
 
         for (usize i = 1; i < net.layers.size(); i++) {
             if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
                 weightGradAccum[i].resize(compLayer->weights.size());
                 biasGradAccum[i].resize(compLayer->biases.size());
+
+                for (auto& accum : threadWeightGradAccum)
+                    accum[i].resize(compLayer->weights.size());
+                for (auto& accum : threadBiasGradAccum)
+                    accum[i].resize(compLayer->biases.size());
             }
         }
+
+        std::vector<Network> networks;
+
+        for (usize t = 0; t < threads; t++)
+            networks.push_back(net);
 
         // Preload first batch
         dataLoader.asyncPreloadBatch();
@@ -106,6 +126,15 @@ namespace Ember {
                     t.fill(0);
                 for (auto& t : biasGradAccum)
                     t.fill(0);
+                for (auto& accum : threadWeightGradAccum)
+                    for (auto& t : accum)
+                        t.fill(0);
+                for (auto& accum : threadBiasGradAccum)
+                    for (auto& t : accum)
+                        t.fill(0);
+
+                for (auto& n : networks)
+                    n = net;
 
                 dataLoader.waitForBatch();
                 dataLoader.swapBuffers();
@@ -113,20 +142,25 @@ namespace Ember {
                 // Instantly start loading next batch
                 dataLoader.asyncPreloadBatch();
 
+                #pragma omp parallel for num_threads(threads) reduction(+:trainLoss)
                 for (u64 sample = 0; sample < batchSize; sample++) {
-                    const internal::DataPoint& data = dataLoader.next();
+                    const usize tID = omp_get_thread_num();
 
-                    net.forward(data.input);
+                    Network& thisNet = networks[tID];
+
+                    const internal::DataPoint& data = dataLoader.batchData(sample);
+
+                    thisNet.forward(data.input);
 
                     // Accumulate training loss
-                    trainLoss += lossFunc->forward(net.layers.back()->values, data.target);
+                    trainLoss += lossFunc->forward(thisNet.output(), data.target);
 
-                    const auto gradients = backward(data.target);
+                    const auto gradients = backward(thisNet, data.target);
 
                     // Accumulate gradients
-                    for (usize l = 1; l < net.layers.size(); l++) {
-                        const auto& prevLayer = net.layers[l - 1];
-                        if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
+                    for (usize l = 1; l < thisNet.layers.size(); l++) {
+                        const auto& prevLayer = thisNet.layers[l - 1];
+                        if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(thisNet.layers[l].get())) {
                             for (usize i = 0; i < compLayer->size; i++) {
                                 for (usize j = 0; j < prevLayer->size; j++) {
                                     const usize idx = j * compLayer->size + i;
@@ -134,14 +168,32 @@ namespace Ember {
                                     assert(idx < weightGradAccum[l].size());
                                     assert(idx < gradients[l].weightGrad.size());
 
-                                    weightGradAccum[l][idx] += gradients[l].weightGrad[idx];
+                                    threadWeightGradAccum[tID][l][idx] += gradients[l].weightGrad[idx];
                                 }
 
                                 assert(l < biasGradAccum.size());
                                 assert(i < biasGradAccum[l].size());
                                 assert(i < gradients[l].biasGrad.size());
 
-                                biasGradAccum[l][i] += gradients[l].biasGrad[i];
+                                threadBiasGradAccum[tID][l][i] += gradients[l].biasGrad[i];
+                            }
+                        }
+                    }
+                }
+
+                // Reduce across threads
+                for (usize t = 0; t < threads; t++) {
+                    for (usize l = 1; l < net.layers.size(); l++) {
+                        const auto& prevLayer = net.layers[l - 1];
+                        if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
+                            for (usize i = 0; i < compLayer->size; i++) {
+                                for (usize j = 0; j < prevLayer->size; j++) {
+                                    const usize idx = j * compLayer->size + i;
+
+                                    weightGradAccum[l][idx] += threadWeightGradAccum[t][l][idx];
+                                }
+
+                                biasGradAccum[l][i] += threadBiasGradAccum[t][l][i];
                             }
                         }
                     }

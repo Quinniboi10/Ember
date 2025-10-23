@@ -26,6 +26,8 @@ namespace Ember {
 
             virtual void forward(const Layer& previous) = 0;
 
+            virtual std::unique_ptr<Layer> clone() = 0;
+
             virtual std::string str() const = 0;
             virtual ~Layer() = default;
         };
@@ -63,7 +65,11 @@ namespace Ember {
         struct Input : internal::Layer {
             explicit Input(const usize size) : Layer(size) {}
 
-            void forward(const Layer& previous) override {};
+            void forward(const Layer& previous) override {}
+
+            std::unique_ptr<Layer> clone() override {
+                return std::make_unique<Input>(*this);
+            }
 
             std::string str() const override {
                 return fmt::format("Input - {} features", size);
@@ -129,6 +135,10 @@ namespace Ember {
                 }
 
                 return { gradInput, weightGrad, biasGrad };
+            }
+
+            std::unique_ptr<Layer> clone() override {
+                return std::make_unique<Linear>(*this);
             }
 
             std::string str() const override {
