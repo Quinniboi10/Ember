@@ -72,12 +72,6 @@ namespace Ember {
             }
         }
 
-        SGD::SGD(const SGD& other)
-                : Optimizer(other),
-                    weightVelocities(other.weightVelocities),
-                    biasVelocities(other.biasVelocities),
-                    momentum(other.momentum) {}
-
         void SGD::step(const float lr) {
             for (usize lIdx = 1; lIdx < net.layers.size(); lIdx++) {
                 std::unique_ptr<internal::Layer>& l = net.layers[lIdx];
@@ -106,6 +100,79 @@ namespace Ember {
 
         std::unique_ptr<internal::Optimizer> SGD::clone() const {
             return std::make_unique<SGD>(*this);
+        }
+
+        Adam::Adam(Network& net, const float beta1, const float beta2, const float epsilon, const float decay) : Optimizer(net) {
+            this->beta1 = beta1;
+            this->beta2 = beta2;
+            this->epsilon = epsilon;
+            this->decay = decay;
+            weightVelocities.resize(net.layers.size());
+            biasVelocities.resize(net.layers.size());
+            weightMomentum.resize(net.layers.size());
+            biasMomentum.resize(net.layers.size());
+
+            for (usize i = 1; i < net.layers.size(); i++) {
+                const std::unique_ptr<internal::Layer>& l = net.layers[i];
+                const auto* layer = dynamic_cast<internal::ComputeLayer*>(l.get());
+                if (!layer)
+                    continue;
+
+                weightVelocities[i].resize(layer->weights.size());
+                biasVelocities[i].resize(layer->biases.size());
+                weightMomentum[i].resize(layer->weights.size());
+                biasMomentum[i].resize(layer->biases.size());
+            }
+        }
+
+        void Adam::step(const float lr) {
+            iteration++;
+            const float biasCorr1 = 1.0f - std::pow(beta1, iteration);
+            const float biasCorr2 = 1.0f - std::pow(beta2, iteration);
+
+            for (usize lIdx = 1; lIdx < net.layers.size(); lIdx++) {
+                std::unique_ptr<internal::Layer>& l = net.layers[lIdx];
+                auto* layer = dynamic_cast<internal::ComputeLayer*>(l.get());
+                if (!layer)
+                    continue;
+
+                assert(weightVelocities[lIdx].size() == layer->weights.size());
+                assert(biasVelocities[lIdx].size() == layer->biases.size());
+                assert(weightGradients[lIdx].size() == layer->weights.size());
+                assert(biasGradients[lIdx].size() == layer->biases.size());
+
+                // Update weights
+                for (usize i = 0; i < layer->weights.size(); i++) {
+                    layer->weights[i] *= 1.0f - lr * decay;
+
+                    weightMomentum[lIdx][i] = beta1 * weightMomentum[lIdx][i] + (1.0f - beta1) * weightGradients[lIdx][i];
+                    weightVelocities[lIdx][i] = beta2 * weightVelocities[lIdx][i] + (1.0f - beta2) * weightGradients[lIdx][i] * weightGradients[lIdx][i];
+
+                    // Bias correction
+                    const float mHat = weightMomentum[lIdx][i] / biasCorr1;
+                    const float vHat = weightVelocities[lIdx][i] / biasCorr2;
+
+                    layer->weights[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
+                }
+
+                // Update biases
+                for (usize i = 0; i < layer->biases.size(); i++) {
+                    layer->biases[i] *= (1.0f - lr * decay);
+
+                    biasMomentum[lIdx][i] = beta1 * biasMomentum[lIdx][i] + (1.0f - beta1) * biasGradients[lIdx][i];
+                    biasVelocities[lIdx][i] = beta2 * biasVelocities[lIdx][i] + (1.0f - beta2) * biasGradients[lIdx][i] * biasGradients[lIdx][i];
+
+                    // Bias correction
+                    const float mHat = biasMomentum[lIdx][i] / biasCorr1;
+                    const float vHat = biasVelocities[lIdx][i] / biasCorr2;
+
+                    layer->biases[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
+                }
+            }
+        }
+
+        std::unique_ptr<internal::Optimizer> Adam::clone() const {
+            return std::make_unique<Adam>(*this);
         }
     }
 }

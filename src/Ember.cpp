@@ -10,7 +10,7 @@ int main() {
      );
 
     Ember::dataloaders::ImageDataLoader dataloader("../datasets/MNIST/", 128, 0.9, 6, 28, 28);
-    Ember::optimizers::SGD optimizer(net, 0.9);
+    Ember::optimizers::Adam optimizer(net);
 
     Ember::Learner learner(net, dataloader, optimizer, Ember::loss::MeanSquaredError());
 
