@@ -12,11 +12,11 @@ int main() {
     Ember::dataloaders::ImageDataLoader dataloader("../datasets/MNIST/", 128, 0.9, 6, 28, 28);
     Ember::optimizers::Adam optimizer(net);
 
-    Ember::Learner learner(net, dataloader, optimizer, Ember::loss::MeanSquaredError());
+    Ember::Learner learner(net, dataloader, optimizer, Ember::loss::CrossEntropyLoss());
 
     net.setMode(Ember::NetworkMode::TRAIN);
 
     std::cout << net << std::endl;
 
-    learner.learn(0.05, 2, 1);
+    learner.learn(0.01, 2, 1);
 }

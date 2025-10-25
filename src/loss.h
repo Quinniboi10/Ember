@@ -18,5 +18,10 @@ namespace Ember {
             float forward(const Tensor<1>& output, const std::vector<float> &target) override;
             Tensor<1> backward(const Tensor<1>& output, const std::vector<float> &target) override;
         };
+
+        struct CrossEntropyLoss : internal::LossFunction {
+            float forward(const Tensor<1>& output, const std::vector<float> &target) override;
+            Tensor<1> backward(const Tensor<1>& output, const std::vector<float> &target) override;
+        };
     }
 }
