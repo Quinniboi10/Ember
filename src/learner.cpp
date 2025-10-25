@@ -43,21 +43,34 @@ namespace Ember {
         }
     }
 
-    void Learner::learn(const float lr, const usize epochs, usize threads) {
-        if (threads == 0)
-            threads = std::thread::hardware_concurrency();
-        if (threads == 0) {
-            std::cerr << "Failed to detect number of threads" << std::endl;
-            threads = 1;
-        }
-        fmt::println("Using {} threads", threads);
+    void Learner::learn(const float initialLr, const usize epochs, usize threads) {
+        // Initialize the learner's callback shared states
+        lr = initialLr;
+        testLoss = std::numeric_limits<float>::infinity();
+        testAccuracy = std::numeric_limits<float>::infinity();
+
+        currentBatch = 0;
+        trainLoss = std::numeric_limits<float>::infinity();
+        epoch = 0;
+
+        // Initialization of stuff
+        std::pair<float, float> test{};
+
+        // Accumulators
+        std::vector<std::vector<Tensor<1>>> threadWeightGradAccum(threads);
+        std::vector<std::vector<Tensor<1>>> threadBiasGradAccum(threads);
+
+        std::vector<Tensor<1>> weightGradAccum(net.layers.size());
+        std::vector<Tensor<1>> biasGradAccum(net.layers.size());
 
         const u64 batchSize = dataLoader.batchSize;
         const u64 batchesPerEpoch = dataLoader.numSamples / batchSize;
 
-        fmt::println("Training for {} batches with {} batches per epoch", batchesPerEpoch * epochs, batchesPerEpoch);
+        std::vector<Network> networks;
 
-        std::cout << "Epoch    Train loss    Test loss    Test accuracy\n\n" << std::endl;
+        double trainLoss{};
+
+        ProgressBar progressBar{};
 
         // Returns { test loss, test accuracy }
         const auto getTestLossAcc = [&]() {
@@ -82,12 +95,32 @@ namespace Ember {
             return std::pair<float, float>{ loss / (testSize ? testSize : 1), numCorrect / static_cast<float>(testSize ? testSize : 1) };
         };
 
-        // Initialize accumulators
-        std::vector<std::vector<Tensor<1>>> threadWeightGradAccum(threads);
-        std::vector<std::vector<Tensor<1>>> threadBiasGradAccum(threads);
+        Stopwatch<std::chrono::milliseconds> stopwatch;
 
-        std::vector<Tensor<1>> weightGradAccum(net.layers.size());
-        std::vector<Tensor<1>> biasGradAccum(net.layers.size());
+        for (const auto& c : callbacks)
+            c->setLearner(this);
+
+        try {
+            for (const auto& c : callbacks)
+                c->run(internal::BEFORE_FIT);
+        }
+        catch (const internal::CallbackException& e) {
+            if (const auto* error = dynamic_cast<const internal::CancelFitException*>(&e))
+                goto afterFit;
+        }
+
+        // Get number of threads to use
+        if (threads == 0)
+            threads = std::thread::hardware_concurrency();
+        if (threads == 0) {
+            std::cerr << "Failed to detect number of threads" << std::endl;
+            threads = 1;
+        }
+        fmt::println("Using {} threads", threads);
+
+        fmt::println("Training for {} batches with {} batches per epoch", batchesPerEpoch * epochs, batchesPerEpoch);
+
+        std::cout << "Epoch    Train loss    Test loss    Test accuracy        Time\n\n" << std::endl;
 
         for (auto& accum : threadWeightGradAccum)
             accum.resize(net.layers.size());
@@ -106,21 +139,46 @@ namespace Ember {
             }
         }
 
-        std::vector<Network> networks;
-
+        networks.reserve(threads);
         for (usize t = 0; t < threads; t++)
             networks.push_back(net);
 
         // Preload first batch
         dataLoader.asyncPreloadBatch();
 
+        stopwatch.reset();
+
         // Main loop
-        for (usize epoch = 0; epoch < epochs; epoch++) {
-            double trainLoss = 0;
+        for (epoch = 0; epoch < epochs; epoch++) {
+            try {
+                for (const auto& c : callbacks)
+                    c->run(internal::BEFORE_EPOCH);
+            }
+            catch (const internal::CallbackException& e) {
+                if (const auto& error = dynamic_cast<const internal::CancelEpochException*>(&e))
+                    goto afterEpoch;
+                if (const auto* error = dynamic_cast<const internal::CancelFitException*>(&e))
+                    goto afterFit;
+            }
 
-            ProgressBar progressBar{};
+            trainLoss = 0;
 
-            for (u64 batchIdx = 0; batchIdx < batchesPerEpoch; batchIdx++) {
+            progressBar = ProgressBar();
+
+            for (currentBatch = 0; currentBatch < batchesPerEpoch; currentBatch++) {
+                try {
+                    for (const auto& c : callbacks)
+                        c->run(internal::BEFORE_BATCH);
+                }
+                catch (const internal::CallbackException& e) {
+                    if (const auto& error = dynamic_cast<const internal::CancelBatchException*>(&e))
+                        goto afterBatch;
+                    if (const auto& error = dynamic_cast<const internal::CancelEpochException*>(&e))
+                        goto afterEpoch;
+                    if (const auto* error = dynamic_cast<const internal::CancelFitException*>(&e))
+                        goto afterFit;
+                }
+
                 // Reset accumulators per mini-batch
                 for (auto& t : weightGradAccum)
                     t.fill(0);
@@ -204,18 +262,43 @@ namespace Ember {
                 optimizer.step(lr);
                 optimizer.zeroGrad();
 
+                this->trainLoss = trainLoss / currentBatch / batchSize;
+
                 internal::cursor::up();
                 internal::cursor::up();
                 internal::cursor::begin();
-                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}", epoch, trainLoss / batchIdx / batchSize, "Pending", "Pending");
-                std::cout << progressBar.report(batchIdx, batchesPerEpoch, 63) << "      " << std::endl;
+                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}", epoch, trainLoss / currentBatch / batchSize, "Pending", "Pending", formatTime(stopwatch.elapsed()));
+                std::cout << progressBar.report(currentBatch, batchesPerEpoch, 63) << "      " << std::endl;
+
+                afterBatch:
+                for (const auto& c : callbacks)
+                    c->run(internal::AFTER_BATCH);
             }
-            const auto [testLoss, testAccuracy] = getTestLossAcc();
+            test = getTestLossAcc();
+
+            testLoss = test.first;
+            testAccuracy = test.second;
 
             internal::cursor::up();
             internal::cursor::clear();
             internal::cursor::up();
-            fmt::println("{:>5L}{:>14.5f}{:>13.5f}{:>17.2f}%\n\n", epoch, trainLoss / batchesPerEpoch / batchSize, testLoss, testAccuracy * 100);
+            internal::cursor::clear();
+
+            afterEpoch:
+            try {
+                for (const auto& c : callbacks)
+                    c->run(internal::AFTER_EPOCH);
+            }
+            catch (const internal::CallbackException& e) {
+                if (const auto* error = dynamic_cast<const internal::CancelFitException*>(&e))
+                    goto afterFit;
+            }
+
+            fmt::println("{:>5L}{:>14.5f}{:>13.5f}{:>16.2f}%{:>12}\n\n", epoch, trainLoss / batchesPerEpoch / batchSize, testLoss, testAccuracy * 100, formatTime(stopwatch.elapsed()));
         }
+
+        afterFit:
+        for (const auto& c : callbacks)
+            c->run(internal::AFTER_FIT);
     }
 }

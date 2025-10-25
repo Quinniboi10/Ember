@@ -18,5 +18,10 @@ int main() {
 
     std::cout << net << std::endl;
 
-    learner.learn(0.01, 2, 1);
+    learner.addCallbacks(
+        Ember::callbacks::DropLROnPlateau(1, 0.3),
+        Ember::callbacks::StopWhenNoProgress(3)
+    );
+
+    learner.learn(0.01, 20, 1);
 }

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "activation.h"
 #include "dataloader.h"
+#include "activation.h"
 #include "optimizer.h"
+#include "callback.h"
 #include "loss.h"
 
 namespace Ember {
@@ -16,15 +17,38 @@ namespace Ember {
         };
     }
 
+    template <typename T>
+    concept CallbackLike = std::derived_from<std::decay_t<T>, internal::Callback>;
+
     struct Learner {
         Network& net;
         internal::DataLoader& dataLoader;
         internal::Optimizer& optimizer;
         std::unique_ptr<internal::LossFunction> lossFunc;
 
+        std::vector<std::unique_ptr<internal::Callback>> callbacks;
+
+        // Info for callbacks to use/change based on the last state of the learner
+        float lr{};
+
+        // Updated every epoch
+        float testLoss{};
+        float testAccuracy{};
+
+        // Updated every batch
+        u64 currentBatch{};
+        float trainLoss{};
+        usize epoch{};
+
         template<typename LossFunction>
         Learner(Network& net, internal::DataLoader& dataLoader, internal::Optimizer& optimizer, const LossFunction&& lossFunc) : net(net), dataLoader(dataLoader), optimizer(optimizer) {
             this->lossFunc = std::make_unique<std::decay_t<LossFunction>>(lossFunc);
+        }
+
+        // Add the given list of callbacks to the learner
+        template <CallbackLike... Args>
+        void addCallbacks(Args&&... args) {
+            (callbacks.emplace_back(std::make_unique<std::decay_t<Args>>(std::forward<Args>(args))), ...);
         }
 
         // Returns a vector of gradients
