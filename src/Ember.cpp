@@ -1,4 +1,5 @@
 #include "learner.h"
+#include "save.h"
 
 int main() {
     Ember::Network net(
@@ -24,4 +25,6 @@ int main() {
     );
 
     learner.learn(0.01, 20, 1);
+
+    Ember::saveParams("../net.bin", net);
 }
