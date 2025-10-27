@@ -11,13 +11,13 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                weightGradients[i].resize(layer->weights.size());
+                weightGradients[i].resize(layer->weights.rows, layer->weights.cols);
                 biasGradients[i].resize(layer->biases.size());
             }
         }
 
         void Optimizer::zeroGrad() {
-            for (Tensor<1>& grad : weightGradients)
+            for (BlasMatrix& grad : weightGradients)
                 grad.fill(0);
 
             for (Tensor<1>& grad : biasGradients)
@@ -29,7 +29,7 @@ namespace Ember {
             double totalNormSq = 0.0;
             // Weights gradients
             for (const auto& layerGradients : weightGradients)
-                for (const float wg : layerGradients)
+                for (const float wg : layerGradients.data)
                     totalNormSq += wg * wg;
 
             // Bias gradients
@@ -45,7 +45,7 @@ namespace Ember {
 
                 // Weights gradients
                 for (auto& layerGradients : weightGradients)
-                    for (float& wg : layerGradients)
+                    for (float& wg : layerGradients.data)
                         wg *= scale;
 
                 // Bias gradients
@@ -67,7 +67,7 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                weightVelocities[i].resize(layer->weights.size());
+                weightVelocities[i].resize(layer->weights.rows, layer->weights.cols);
                 biasVelocities[i].resize(layer->biases.size());
             }
         }
@@ -79,15 +79,15 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                assert(weightVelocities[lIdx].size() == layer->weights.size());
+                assert(weightVelocities[lIdx].data.size() == layer->weights.data.size());
                 assert(biasVelocities[lIdx].size() == layer->biases.size());
-                assert(weightGradients[lIdx].size() == layer->weights.size());
+                assert(weightGradients[lIdx].data.size() == layer->weights.data.size());
                 assert(biasGradients[lIdx].size() == layer->biases.size());
 
                 // Update weights with momentum
-                for (usize i = 0; i < layer->weights.size(); i++) {
-                    weightVelocities[lIdx][i] = momentum * weightVelocities[lIdx][i] - lr * weightGradients[lIdx][i];
-                    layer->weights[i] += weightVelocities[lIdx][i];
+                for (usize i = 0; i < layer->weights.data.size(); i++) {
+                    weightVelocities[lIdx].data[i] = momentum * weightVelocities[lIdx].data[i] - lr * weightGradients[lIdx].data[i];
+                    layer->weights.data[i] += weightVelocities[lIdx].data[i];
                 }
 
                 // Update biases with momentum
@@ -118,9 +118,9 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                weightVelocities[i].resize(layer->weights.size());
+                weightVelocities[i].resize(layer->weights.rows, layer->weights.cols);
                 biasVelocities[i].resize(layer->biases.size());
-                weightMomentum[i].resize(layer->weights.size());
+                weightMomentum[i].resize(layer->weights.rows, layer->weights.cols);
                 biasMomentum[i].resize(layer->biases.size());
             }
         }
@@ -136,23 +136,23 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                assert(weightVelocities[lIdx].size() == layer->weights.size());
+                assert(weightVelocities[lIdx].data.size() == layer->weights.data.size());
                 assert(biasVelocities[lIdx].size() == layer->biases.size());
-                assert(weightGradients[lIdx].size() == layer->weights.size());
+                assert(weightGradients[lIdx].data.size() == layer->weights.data.size());
                 assert(biasGradients[lIdx].size() == layer->biases.size());
 
                 // Update weights
-                for (usize i = 0; i < layer->weights.size(); i++) {
-                    layer->weights[i] *= 1.0f - lr * decay;
+                for (usize i = 0; i < layer->weights.data.size(); i++) {
+                    layer->weights.data[i] *= 1.0f - lr * decay;
 
-                    weightMomentum[lIdx][i] = beta1 * weightMomentum[lIdx][i] + (1.0f - beta1) * weightGradients[lIdx][i];
-                    weightVelocities[lIdx][i] = beta2 * weightVelocities[lIdx][i] + (1.0f - beta2) * weightGradients[lIdx][i] * weightGradients[lIdx][i];
+                    weightMomentum[lIdx].data[i] = beta1 * weightMomentum[lIdx].data[i] + (1.0f - beta1) * weightGradients[lIdx].data[i];
+                    weightVelocities[lIdx].data[i] = beta2 * weightVelocities[lIdx].data[i] + (1.0f - beta2) * weightGradients[lIdx].data[i] * weightGradients[lIdx].data[i];
 
                     // Bias correction
-                    const float mHat = weightMomentum[lIdx][i] / biasCorr1;
-                    const float vHat = weightVelocities[lIdx][i] / biasCorr2;
+                    const float mHat = weightMomentum[lIdx].data[i] / biasCorr1;
+                    const float vHat = weightVelocities[lIdx].data[i] / biasCorr2;
 
-                    layer->weights[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
+                    layer->weights.data[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
                 }
 
                 // Update biases

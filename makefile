@@ -11,7 +11,7 @@ endif
 
 # Compiler and flags
 CXX      := clang++
-CXXFLAGS := -O3 -std=c++20 -flto -fopenmp -funroll-loops -DNDEBUG
+CXXFLAGS := -O3 -std=c++20 -flto -lopenblas -funroll-loops -DNDEBUG
 
 ifeq ($(OS),Windows_NT)
   ARCH := $(PROCESSOR_ARCHITECTURE)
@@ -59,12 +59,12 @@ endif
 
 # Debug build
 .PHONY: debug
-debug: CXXFLAGS = -O3 -std=c++20 -flto -fopenmp -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
+debug: CXXFLAGS = -O3 -std=c++20 -flto -lopenblas -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
 
 # Debug build
 .PHONY: profile
-profile: CXXFLAGS = -O3 -std=c++20 -flto -fopenmp -funroll-loops -ggdb -fno-omit-frame-pointer -DNDEBUG
+profile: CXXFLAGS = -O3 -std=c++20 -flto -lopenblas -funroll-loops -ggdb -fno-omit-frame-pointer -DNDEBUG
 profile: all
 
 # Force rebuild

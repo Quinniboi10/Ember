@@ -8,3 +8,6 @@
 *.o
 *.d
 Ember*
+
+# Profiling
+perf.*

@@ -3,6 +3,7 @@
 #include "tensor.h"
 
 #include <utility>
+#include <cblas.h>
 #include <string>
 #include <thread>
 
@@ -33,30 +34,20 @@ namespace Ember {
         };
 
         struct ComputeLayer : Layer {
-            Tensor<1> weights; // Indexed [previous][current], flattened to prev * size + curr
+            BlasMatrix weights; // previousSize rows and size cols
             Tensor<1> biases;
-
-            usize threadCount;
 
             ComputeLayer() = delete;
 
-            ComputeLayer(const usize size) : Layer(size) {
-                threadCount = std::max<usize>(1, std::thread::hardware_concurrency());
-                threadCount = std::min<usize>(threadCount, size / 2);
-
+            explicit ComputeLayer(const usize size) : Layer(size) {
                 this->biases.resize(size);
             }
 
-            void setThreadCount(const usize threadCount) {
-                this->threadCount = std::max<usize>(1, threadCount);
-                this->threadCount = std::min<usize>(threadCount, size / 2);
-            }
-
             void init(const usize previousSize) {
-                this->weights.resize(previousSize * size);
+                this->weights.resize(size, previousSize);
             }
 
-            virtual std::tuple<Tensor<1>, Tensor<1>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
+            virtual std::tuple<Tensor<1>, BlasMatrix, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
         };
 
         struct ActivationLayer : Layer {
@@ -89,42 +80,36 @@ namespace Ember {
                 const usize inputSize  = previous.size;
                 const usize outputSize = size;
 
-                std::vector<std::thread> threads;
+                // Copy biases to output first
+                std::memcpy(values.ptr(), biases.ptr(), outputSize * sizeof(float));
 
-                threadCount = 1;
-
-                const auto worker = [&](const usize threadId) {
-                    // Divide the range across threads
-                    const usize start = (outputSize * threadId) / threadCount;
-                    const usize end   = std::min((outputSize * (threadId + 1)) / threadCount, outputSize);
-
-                    for (usize curr = start; curr < end; curr++) {
-                        float sum = biases[curr];
-                        for (usize prev = 0; prev < inputSize; prev++)
-                            sum += previous.values[prev] * weights[prev * size + curr];
-                        values[curr] = sum;
-                    }
-                };
-
-                // Launch worker threads
-                for (usize t = 1; t < threadCount; t++)
-                    threads.emplace_back(worker, t);
-
-                // Run thread 0 on the main thread
-                worker(0);
-
-                // Join all threads
-                for (std::thread& t : threads)
-                    if (t.joinable())
-                        t.join();
+                // Perform y = W^T * x + y (in-place)
+                // dimensions:
+                //   W: outputSize x inputSize
+                //   x: inputSize
+                //   y: outputSize
+                cblas_sgemv(
+                    CblasRowMajor,         // Memory layout
+                    CblasNoTrans,          // Don't transpose W to keep outputSize x inputSize
+                    outputSize,            // rows of W
+                    inputSize,             // cols of W
+                    1.0f,                  // alpha
+                    weights.data.data(),   // W data
+                    inputSize,             // lda (leading dimension, number of cols)
+                    previous.values.ptr(), // x vector
+                    1,                     // incx
+                    1.0f,                  // beta (since y already holds biases)
+                    values.ptr(),          // y vector (output)
+                    1                      // incy
+                );
             }
 
-            std::tuple<Tensor<1>, Tensor<1>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const override {
+            std::tuple<Tensor<1>, BlasMatrix, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const override {
                 const usize inputSize  = previous.size;
                 const usize outputSize = size;
 
                 Tensor<1> gradInput(inputSize, 0.0f);
-                Tensor<1> weightGrad(weights.size(), 0.0f);
+                BlasMatrix weightGrad(weights.rows, weights.cols);
                 Tensor<1> biasGrad(size, 0.0f);
 
                 // Compute gradients
@@ -132,8 +117,8 @@ namespace Ember {
                     biasGrad[curr] = gradOutput[curr];
                     for (usize prev = 0; prev < inputSize; prev++) {
                         const usize wIndex = prev * outputSize + curr;
-                        gradInput[prev] += weights[wIndex] * gradOutput[curr];
-                        weightGrad[wIndex] += previous.values[prev] * gradOutput[curr];
+                        gradInput[prev] += weights.data[wIndex] * gradOutput[curr];
+                        weightGrad.data[wIndex] += previous.values[prev] * gradOutput[curr];
                     }
                 }
 
@@ -145,7 +130,7 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("Linear - {} input features and {} output features", weights.size() / size, size);
+                return fmt::format("Linear - {} input features and {} output features", weights.cols, size);
             }
         };
     }

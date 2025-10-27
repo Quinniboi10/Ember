@@ -14,7 +14,7 @@ namespace Ember {
             if (!layer)
                 continue;
 
-            for (const float weight : layer->weights)
+            for (const float weight : layer->weights.data)
                 write(weight);
 
             for (const float bias : layer->biases)
@@ -34,7 +34,7 @@ namespace Ember {
             if (!layer)
                 continue;
 
-            for (float& weight : layer->weights)
+            for (float& weight : layer->weights.data)
                 read(weight);
 
             for (float& bias : layer->biases)

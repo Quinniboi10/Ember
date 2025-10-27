@@ -44,13 +44,13 @@ namespace Ember {
                 if (useXavierInit) {
                     const float limit = std::sqrt(6.0f / (fanIn + fanOut));
                     std::uniform_real_distribution<float> dist(-limit, limit);
-                    for (auto& w : layer->weights)
+                    for (auto& w : layer->weights.data)
                         w = dist(gen);
                 }
                 else {
                     const float stddev = std::sqrt(2.0f / fanIn);
                     std::normal_distribution<float> dist(0.0f, stddev);
-                    for (auto& w : layer->weights)
+                    for (auto& w : layer->weights.data)
                         w = dist(gen);
                 }
 
@@ -68,8 +68,6 @@ namespace Ember {
         explicit Network(Args&&... args) {
             _init(true, std::forward<Args>(args)...);
         }
-
-        void setMode(const NetworkMode mode);
 
         void forward(const Tensor<1>& input);
         const Tensor<1>& output() const;
