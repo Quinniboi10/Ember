@@ -3,9 +3,9 @@
 int main() {
     Ember::Network net(
         Ember::layers::Input(28 * 28),
-        Ember::layers::Linear(28 * 28, 64),
+        Ember::layers::Linear(64),
         Ember::activations::ReLU(),
-        Ember::layers::Linear(64, 10),
+        Ember::layers::Linear(10),
         Ember::activations::Softmax()
      );
 

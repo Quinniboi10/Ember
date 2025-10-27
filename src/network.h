@@ -26,7 +26,7 @@ namespace Ember {
 
             for (usize l = 1; l < layers.size(); l++) {
                 // Try to set the size of an activation layer
-                if (auto* activationLayer = dynamic_cast<internal::ActivationLayer*>(layers[l].get()); activationLayer != nullptr) {
+                if (auto* activationLayer = dynamic_cast<internal::ActivationLayer*>(layers[l].get())) {
                     activationLayer->setSize(layers[l - 1]->size);
                     continue;
                 }
@@ -35,6 +35,8 @@ namespace Ember {
                 // Dynamic cast will return nullptr if it's an activation layer
                 if (layer == nullptr)
                     continue;
+
+                layer->init(layers[l - 1]->size);
 
                 const usize fanIn = layers[l - 1]->size;
                 const usize fanOut = layer->size;

@@ -20,8 +20,8 @@ namespace Ember {
             }
 
             void setSize(const usize size) {
-                values.resize(size);
                 this->size = size;
+                values.resize(size);
             }
 
             virtual void forward(const Layer& previous) = 0;
@@ -40,17 +40,20 @@ namespace Ember {
 
             ComputeLayer() = delete;
 
-            ComputeLayer(const usize previousSize, const usize size) : Layer(size) {
+            ComputeLayer(const usize size) : Layer(size) {
                 threadCount = std::max<usize>(1, std::thread::hardware_concurrency());
                 threadCount = std::min<usize>(threadCount, size / 2);
 
-                this->weights.resize(previousSize * size);
                 this->biases.resize(size);
             }
 
             void setThreadCount(const usize threadCount) {
                 this->threadCount = std::max<usize>(1, threadCount);
                 this->threadCount = std::min<usize>(threadCount, size / 2);
+            }
+
+            void init(const usize previousSize) {
+                this->weights.resize(previousSize * size);
             }
 
             virtual std::tuple<Tensor<1>, Tensor<1>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
@@ -78,7 +81,7 @@ namespace Ember {
 
         struct Linear : internal::ComputeLayer {
             // Construct a hidden layer
-            Linear(const usize previousSize, const usize size) : ComputeLayer(previousSize, size) {}
+            explicit Linear(const usize size) : ComputeLayer(size) {}
 
             // Forward pass
             // Fill values in the current layer
