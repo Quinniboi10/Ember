@@ -22,5 +22,5 @@ int main() {
         Ember::callbacks::AutosaveBest("../net.bin")
     );
 
-    learner.learn(0.01, 20, 1);
+    learner.learn(0.01, 20, 2);
 }

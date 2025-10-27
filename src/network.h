@@ -69,7 +69,7 @@ namespace Ember {
             _init(true, std::forward<Args>(args)...);
         }
 
-        void forward(const Tensor<1>& input);
+        void forward(const Tensor<1>& input, const usize threads);
         const Tensor<1>& output() const;
 
         Network& operator=(const Network& other) {

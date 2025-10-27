@@ -1,6 +1,5 @@
 #include "learner.h"
 #include "progbar.h"
-#include "omp.h"
 
 #include <algorithm>
 
@@ -42,7 +41,7 @@ namespace Ember {
         }
     }
 
-    void Learner::learn(const float initialLr, const usize epochs, usize threads) {
+    void Learner::learn(const float initialLr, const usize epochs, const usize threads) {
         // Initialize the learner's callback shared states
         lr = initialLr;
         testLoss = std::numeric_limits<float>::infinity();
@@ -74,7 +73,7 @@ namespace Ember {
             const usize testSize = dataLoader.testSetSize();
             while (dataLoader.hasNext()) {
                 internal::DataPoint data = dataLoader.next();
-                net.forward(data.input);
+                net.forward(data.input, threads);
                 loss += lossFunc->forward(net.layers.back()->values, data.target);
                 usize guess = 0;
                 usize goal = 0;
@@ -102,15 +101,6 @@ namespace Ember {
             if (const auto* error = dynamic_cast<const internal::CancelFitException*>(&e))
                 goto afterFit;
         }
-
-        // Get number of threads to use
-        if (threads == 0)
-            threads = std::thread::hardware_concurrency();
-        if (threads == 0) {
-            std::cerr << "Failed to detect number of threads" << std::endl;
-            threads = 1;
-        }
-        fmt::println("Using {} threads", threads);
 
         fmt::println("Training for {} batches with {} batches per epoch", batchesPerEpoch * epochs, batchesPerEpoch);
 
@@ -174,7 +164,7 @@ namespace Ember {
                 for (u64 sample = 0; sample < batchSize; sample++) {
                     const internal::DataPoint& data = dataLoader.batchData(sample);
 
-                    net.forward(data.input);
+                    net.forward(data.input, threads);
 
                     // Accumulate training loss
                     trainLoss += lossFunc->forward(net.output(), data.target);

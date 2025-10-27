@@ -60,6 +60,6 @@ namespace Ember {
 
         // Main trainer functionality is through this function
         // Trains a neural network
-        void learn(const float lr, const usize epochs, usize threads = 0);
+        void learn(const float lr, const usize epochs, usize threads);
     };
 }

@@ -1,7 +1,8 @@
 #include "network.h"
 
 namespace Ember {
-    void Network::forward(const Tensor<1>& input) {
+    void Network::forward(const Tensor<1>& input, const usize threads) {
+        openblas_set_num_threads(threads);
         layers[0]->values = input;
 
         for (usize i = 1; i < layers.size(); i++)
