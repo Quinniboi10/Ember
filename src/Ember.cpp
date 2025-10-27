@@ -1,5 +1,4 @@
 #include "learner.h"
-#include "save.h"
 
 int main() {
     Ember::Network net(
@@ -15,16 +14,13 @@ int main() {
 
     Ember::Learner learner(net, dataloader, optimizer, Ember::loss::CrossEntropyLoss());
 
-    net.setMode(Ember::NetworkMode::TRAIN);
-
     std::cout << net << std::endl;
 
     learner.addCallbacks(
         Ember::callbacks::DropLROnPlateau(1, 0.3),
-        Ember::callbacks::StopWhenNoProgress(3)
+        Ember::callbacks::StopWhenNoProgress(3),
+        Ember::callbacks::AutosaveBest("../net.bin")
     );
 
     learner.learn(0.01, 20, 1);
-
-    Ember::saveParams("../net.bin", net);
 }

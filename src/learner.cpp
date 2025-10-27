@@ -4,7 +4,6 @@
 
 #include <algorithm>
 
-
 namespace Ember {
     std::vector<internal::Gradient> Learner::backward(const Network& net, const std::vector<float> &target) const {
         std::vector<internal::Gradient> gradients(net.layers.size());
@@ -147,6 +146,9 @@ namespace Ember {
         dataLoader.asyncPreloadBatch();
 
         stopwatch.reset();
+
+        // Set the network to only use 1 thread on the forward pass
+        net.setMode(NetworkMode::TRAIN);
 
         // Main loop
         for (epoch = 0; epoch < epochs; epoch++) {
@@ -300,5 +302,7 @@ namespace Ember {
         afterFit:
         for (const auto& c : callbacks)
             c->run(internal::AFTER_FIT);
+
+        net.setMode(NetworkMode::EVAL);
     }
 }
