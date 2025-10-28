@@ -29,7 +29,7 @@ namespace Ember {
         const float batchScalar = 1.0f / batchSize;
         // Apply gradients to the optimizer
         for (usize l = net.layers.size() - 1; l > 0; l--) {
-            if (dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
+            if (const auto* currLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
                 assert(optimizer.weightGradients[l].data.size() == currLayer->weights.data.size());
                 assert(optimizer.biasGradients[l].size() == currLayer->biases.size());
 
