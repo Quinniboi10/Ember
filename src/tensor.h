@@ -116,7 +116,7 @@ namespace Ember {
         }
 
         // (i, j) access (row i, column j)
-        float& operator()(const usize i, const usize j)       { return data[i * rows + j]; }
-        const float& operator()(const usize i, const usize j) const { return data[i * rows + j]; }
+        float& operator()(const usize i, const usize j)       { return data[i * cols + j]; }
+        const float& operator()(const usize i, const usize j) const { return data[i * cols + j]; }
     };
 }

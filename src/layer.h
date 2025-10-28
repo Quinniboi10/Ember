@@ -116,9 +116,8 @@ namespace Ember {
                 for (usize curr = 0; curr < outputSize; curr++) {
                     biasGrad[curr] = gradOutput[curr];
                     for (usize prev = 0; prev < inputSize; prev++) {
-                        const usize wIndex = prev * outputSize + curr;
-                        gradInput[prev] += weights.data[wIndex] * gradOutput[curr];
-                        weightGrad.data[wIndex] += previous.values[prev] * gradOutput[curr];
+                        gradInput[prev] += weights(curr, prev) * gradOutput[curr];
+                        weightGrad(curr, prev) += previous.values[prev] * gradOutput[curr];
                     }
                 }
 
