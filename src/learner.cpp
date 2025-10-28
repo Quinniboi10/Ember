@@ -1,6 +1,5 @@
 #include "learner.h"
 #include "progbar.h"
-#include "omp.h"
 
 #include <algorithm>
 
@@ -26,23 +25,28 @@ namespace Ember {
         return gradients;
     }
 
-    void Learner::applyGradients(const usize batchSize, const std::vector<Tensor<1>>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum) {
+    void Learner::applyGradients(const usize batchSize, const std::vector<BlasMatrix>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum) {
         const float batchScalar = 1.0f / batchSize;
-        // Apply gradients to weights and biases
+        // Apply gradients to the optimizer
         for (usize l = net.layers.size() - 1; l > 0; l--) {
-            if (const auto& currLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
-                assert(optimizer.weightGradients[l].size() == currLayer->weights.size());
+            if (const auto* currLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
+                assert(optimizer.weightGradients[l].data.size() == currLayer->weights.data.size());
                 assert(optimizer.biasGradients[l].size() == currLayer->biases.size());
 
-                for (usize i = 0; i < optimizer.weightGradients[l].size(); i++)
-                    optimizer.weightGradients[l][i] += weightGradAccum[l][i] * batchScalar;
-                for (usize i = 0; i < currLayer->size; i++)
-                    optimizer.biasGradients[l][i] += biasGradAccum[l][i] * batchScalar;
+                // Weights
+                cblas_saxpy(optimizer.weightGradients[l].data.size(), batchScalar,
+                            weightGradAccum[l].ptr(), 1,
+                            optimizer.weightGradients[l].ptr(), 1);
+
+                // Biases
+                cblas_saxpy(optimizer.biasGradients[l].size(), batchScalar,
+                            biasGradAccum[l].ptr(), 1,
+                            optimizer.biasGradients[l].ptr(), 1);
             }
         }
     }
 
-    void Learner::learn(const float initialLr, const usize epochs, usize threads) {
+    void Learner::learn(const float initialLr, const usize epochs, const usize threads) {
         // Initialize the learner's callback shared states
         lr = initialLr;
         testLoss = std::numeric_limits<float>::infinity();
@@ -56,16 +60,11 @@ namespace Ember {
         std::pair<float, float> test{};
 
         // Accumulators
-        std::vector<std::vector<Tensor<1>>> threadWeightGradAccum(threads);
-        std::vector<std::vector<Tensor<1>>> threadBiasGradAccum(threads);
-
-        std::vector<Tensor<1>> weightGradAccum(net.layers.size());
+        std::vector<BlasMatrix> weightGradAccum(net.layers.size());
         std::vector<Tensor<1>> biasGradAccum(net.layers.size());
 
         const u64 batchSize = dataLoader.batchSize;
         const u64 batchesPerEpoch = dataLoader.numSamples / batchSize;
-
-        std::vector<Network> networks;
 
         double trainLoss{};
 
@@ -79,7 +78,7 @@ namespace Ember {
             const usize testSize = dataLoader.testSetSize();
             while (dataLoader.hasNext()) {
                 internal::DataPoint data = dataLoader.next();
-                net.forward(data.input);
+                net.forward(data.input, threads);
                 loss += lossFunc->forward(net.layers.back()->values, data.target);
                 usize guess = 0;
                 usize goal = 0;
@@ -93,6 +92,10 @@ namespace Ember {
             }
             return std::pair<float, float>{ loss / (testSize ? testSize : 1), numCorrect / static_cast<float>(testSize ? testSize : 1) };
         };
+
+        // Store the compute layers so RTTI isn't done on-the-fly
+        std::vector<internal::ComputeLayer*> computeLayers;
+        std::vector<usize> computeLayerIndexes;
 
         Stopwatch<std::chrono::milliseconds> stopwatch;
 
@@ -108,47 +111,24 @@ namespace Ember {
                 goto afterFit;
         }
 
-        // Get number of threads to use
-        if (threads == 0)
-            threads = std::thread::hardware_concurrency();
-        if (threads == 0) {
-            std::cerr << "Failed to detect number of threads" << std::endl;
-            threads = 1;
-        }
-        fmt::println("Using {} threads", threads);
-
         fmt::println("Training for {} batches with {} batches per epoch", batchesPerEpoch * epochs, batchesPerEpoch);
 
         std::cout << "Epoch    Train loss    Test loss    Test accuracy        Time\n\n" << std::endl;
 
-        for (auto& accum : threadWeightGradAccum)
-            accum.resize(net.layers.size());
-        for (auto& accum : threadBiasGradAccum)
-            accum.resize(net.layers.size());
-
         for (usize i = 1; i < net.layers.size(); i++) {
-            if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
-                weightGradAccum[i].resize(compLayer->weights.size());
+            if (auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
+                weightGradAccum[i].resize(compLayer->weights.rows, compLayer->weights.cols);
                 biasGradAccum[i].resize(compLayer->biases.size());
 
-                for (auto& accum : threadWeightGradAccum)
-                    accum[i].resize(compLayer->weights.size());
-                for (auto& accum : threadBiasGradAccum)
-                    accum[i].resize(compLayer->biases.size());
+                computeLayers.push_back(compLayer);
+                computeLayerIndexes.push_back(i);
             }
         }
-
-        networks.reserve(threads);
-        for (usize t = 0; t < threads; t++)
-            networks.push_back(net);
 
         // Preload first batch
         dataLoader.asyncPreloadBatch();
 
         stopwatch.reset();
-
-        // Set the network to only use 1 thread on the forward pass
-        net.setMode(NetworkMode::TRAIN);
 
         // Main loop
         for (epoch = 0; epoch < epochs; epoch++) {
@@ -186,15 +166,6 @@ namespace Ember {
                     t.fill(0);
                 for (auto& t : biasGradAccum)
                     t.fill(0);
-                for (auto& accum : threadWeightGradAccum)
-                    for (auto& t : accum)
-                        t.fill(0);
-                for (auto& accum : threadBiasGradAccum)
-                    for (auto& t : accum)
-                        t.fill(0);
-
-                for (auto& n : networks)
-                    n = net;
 
                 dataLoader.waitForBatch();
                 dataLoader.swapBuffers();
@@ -202,63 +173,29 @@ namespace Ember {
                 // Instantly start loading next batch
                 dataLoader.asyncPreloadBatch();
 
-                #pragma omp parallel for num_threads(threads) reduction(+:trainLoss)
                 for (u64 sample = 0; sample < batchSize; sample++) {
-                    const usize tID = omp_get_thread_num();
-
-                    Network& thisNet = networks[tID];
-
                     const internal::DataPoint& data = dataLoader.batchData(sample);
 
-                    thisNet.forward(data.input);
+                    net.forward(data.input, threads);
 
                     // Accumulate training loss
-                    trainLoss += lossFunc->forward(thisNet.output(), data.target);
+                    trainLoss += lossFunc->forward(net.output(), data.target);
 
-                    const auto gradients = backward(thisNet, data.target);
+                    const auto gradients = backward(net, data.target);
 
                     // Accumulate gradients
-                    for (usize l = 1; l < thisNet.layers.size(); l++) {
-                        const auto& prevLayer = thisNet.layers[l - 1];
-                        if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(thisNet.layers[l].get())) {
-                            for (usize i = 0; i < compLayer->size; i++) {
-                                for (usize j = 0; j < prevLayer->size; j++) {
-                                    const usize idx = j * compLayer->size + i;
-                                    assert(l < weightGradAccum.size());
-                                    assert(idx < weightGradAccum[l].size());
-                                    assert(idx < gradients[l].weightGrad.size());
+                    for (usize i = 0; i < computeLayers.size(); i++) {
+                        const usize l = computeLayerIndexes[i];
+                        const auto* layer = computeLayers[i];
+                        cblas_saxpy(layer->weights.data.size(), 1.0f,
+                                    gradients[l].weightGrad.ptr(), 1,
+                                    weightGradAccum[l].ptr(), 1);
 
-                                    threadWeightGradAccum[tID][l][idx] += gradients[l].weightGrad[idx];
-                                }
-
-                                assert(l < biasGradAccum.size());
-                                assert(i < biasGradAccum[l].size());
-                                assert(i < gradients[l].biasGrad.size());
-
-                                threadBiasGradAccum[tID][l][i] += gradients[l].biasGrad[i];
-                            }
-                        }
+                        cblas_saxpy(layer->biases.size(), 1.0f,
+                                    gradients[l].biasGrad.ptr(), 1,
+                                    biasGradAccum[l].ptr(), 1);
                     }
                 }
-
-                // Reduce across threads
-                for (usize t = 0; t < threads; t++) {
-                    for (usize l = 1; l < net.layers.size(); l++) {
-                        const auto& prevLayer = net.layers[l - 1];
-                        if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
-                            for (usize i = 0; i < compLayer->size; i++) {
-                                for (usize j = 0; j < prevLayer->size; j++) {
-                                    const usize idx = j * compLayer->size + i;
-
-                                    weightGradAccum[l][idx] += threadWeightGradAccum[t][l][idx];
-                                }
-
-                                biasGradAccum[l][i] += threadBiasGradAccum[t][l][i];
-                            }
-                        }
-                    }
-                }
-
                 applyGradients(batchSize, weightGradAccum, biasGradAccum);
                 optimizer.clipGrad(1);
                 optimizer.step(lr);
@@ -302,7 +239,5 @@ namespace Ember {
         afterFit:
         for (const auto& c : callbacks)
             c->run(internal::AFTER_FIT);
-
-        net.setMode(NetworkMode::EVAL);
     }
 }

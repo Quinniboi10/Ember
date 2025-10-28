@@ -1,13 +1,8 @@
 #include "network.h"
 
 namespace Ember {
-    void Network::setMode(const NetworkMode mode) {
-        for (usize i = 1; i < layers.size(); i++)
-            if (auto* layer = dynamic_cast<internal::ComputeLayer*>(layers[i].get()); layer != nullptr)
-                layer->setThreadCount(mode == NetworkMode::EVAL ? std::thread::hardware_concurrency() : 1);
-    }
-
-    void Network::forward(const Tensor<1>& input) {
+    void Network::forward(const Tensor<1>& input, const usize threads) {
+        openblas_set_num_threads(threads);
         layers[0]->values = input;
 
         for (usize i = 1; i < layers.size(); i++)

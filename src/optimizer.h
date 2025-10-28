@@ -9,7 +9,7 @@ namespace Ember {
         struct Optimizer {
             Network& net;
 
-            std::vector<Tensor<1>> weightGradients;
+            std::vector<BlasMatrix> weightGradients;
             std::vector<Tensor<1>> biasGradients;
 
             explicit Optimizer(Network& net);
@@ -29,7 +29,7 @@ namespace Ember {
 
     namespace optimizers {
         struct SGD : internal::Optimizer {
-            std::vector<Tensor<1>> weightVelocities;
+            std::vector<BlasMatrix> weightVelocities;
             std::vector<Tensor<1>> biasVelocities;
 
             float momentum;
@@ -49,9 +49,9 @@ namespace Ember {
             float decay;
             usize iteration = 0;
 
-            std::vector<Tensor<1>> weightVelocities;
+            std::vector<BlasMatrix> weightVelocities;
             std::vector<Tensor<1>> biasVelocities;
-            std::vector<Tensor<1>> weightMomentum;
+            std::vector<BlasMatrix> weightMomentum;
             std::vector<Tensor<1>> biasMomentum;
 
             explicit Adam(Network& net, const float beta1 = 0.9f, const float beta2 = 0.999f, const float epsilon = 1e-08, const float decay = 0.01f);

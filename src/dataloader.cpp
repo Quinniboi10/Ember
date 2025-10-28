@@ -6,6 +6,7 @@
 #include "../external/stb_image.h"
 
 #include <filesystem>
+#include <omp.h>
 
 std::vector<float> loadGreyscaleImage(const std::string& path, const Ember::usize w, const Ember::usize h) {
     int width, height, channels;
@@ -57,10 +58,12 @@ namespace Ember::dataloaders {
 
         samplesPerType.resize(types.size());
 
+        allImages.resize(types.size());
         numSamples = 0;
         for (usize typeIdx = 0; typeIdx < types.size(); typeIdx++) {
             for (const auto &entry: std::filesystem::directory_iterator(types[typeIdx])) {
                 if (entry.is_regular_file()) {
+                    allImages[typeIdx].push_back(entry.path().string());
                     numSamples++;
                     samplesPerType[typeIdx]++;
                 }
@@ -77,37 +80,34 @@ namespace Ember::dataloaders {
         if (types.empty())
             exitWithMsg(fmt::format("No types found in '{}'", dataDir), 1);
 
-        std::mutex dataMut;
+        std::vector<std::vector<internal::DataPoint>> localData(threads);
 
         #pragma omp parallel for num_threads(threads)
         for (usize i = 0; i < batchSize; i++) {
+            std::mt19937 rng{ std::random_device{}() + omp_get_thread_num()};
+
+            auto& threadData = localData[omp_get_thread_num()];
+            threadData.reserve(batchSize / threads + 1);
+
             // Randomly pick a type
             std::uniform_int_distribution<usize> typeDist(0, types.size() - 1);
             const usize typeIdx = typeDist(rng);
-            const std::string& typeDir = types[typeIdx];
-
-            // Gather image files in that directory
-            std::vector<std::filesystem::path> imgs;
-            for (const auto& entry : std::filesystem::directory_iterator(typeDir)) {
-                if (entry.is_regular_file())
-                    imgs.push_back(entry.path());
-            }
-
-            if (imgs.empty())
-                exitWithMsg(fmt::format("No images found in '{}'", typeDir), 1);
 
             // Randomly pick an image
-            std::uniform_int_distribution<usize> imgDist(0, imgs.size() * trainSplit - 1);
+            std::uniform_int_distribution<usize> imgDist(0, samplesPerType[typeIdx] * trainSplit - 1);
             const usize imgIdx = imgDist(rng);
 
-            std::vector<float> input = loadGreyscaleImage(imgs[imgIdx].string(), width, height);
+            std::vector<float> input = loadGreyscaleImage(allImages[typeIdx][imgIdx], width, height);
             std::vector<float> target(types.size(), 0);
             target[typeIdx] = 1;
 
-            dataMut.lock();
-            data[batchIdx].emplace_back(input, target);
-            dataMut.unlock();
+            threadData.emplace_back(std::move(input), std::move(target));
         }
+
+        for (auto& threadData : localData)
+            data[batchIdx].insert(data[batchIdx].end(),
+                                  std::make_move_iterator(threadData.begin()),
+                                  std::make_move_iterator(threadData.end()));
     }
 
     void ImageDataLoader::loadTestSet() {
@@ -129,7 +129,7 @@ namespace Ember::dataloaders {
                     std::vector<float> target(types.size());
                     target[typeIdx] = 1;
 
-                    data[currBatch].emplace_back(input, target);
+                    data[currBatch].emplace_back(std::move(input), std::move(target));
                 }
             }
         }

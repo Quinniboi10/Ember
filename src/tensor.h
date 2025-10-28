@@ -8,6 +8,7 @@
 
 namespace Ember {
     // Tensor recursive case
+    // Tensor currently has a rather foolish implementation since it doesn't flatten the memory
     template<usize dimensionality>
     struct Tensor {
         static_assert(dimensionality > 1, "dimensionality must be >= 1");
@@ -72,6 +73,9 @@ namespace Ember {
         auto begin() const { return data.begin(); }
         auto end() const { return data.end(); }
 
+        auto ptr() { return data.data(); }
+        auto ptr() const { return data.data(); }
+
         float& operator[](const usize idx) { return data[idx]; }
         const float& operator[](const usize idx) const { return data[idx]; }
 
@@ -87,5 +91,32 @@ namespace Ember {
             }
             return os;
         }
+    };
+
+    struct BlasMatrix {
+        usize rows{};
+        usize cols{};
+        std::vector<float> data;
+
+        BlasMatrix() = default;
+        BlasMatrix(const usize rows, const usize cols) : rows(rows), cols(cols), data(rows * cols) {}
+
+        void resize(const usize rows, const usize cols) {
+            this->rows = rows;
+            this->cols = cols;
+            data.resize(rows * cols);
+        }
+
+        float* ptr() { return data.data(); }
+        const float* ptr() const { return data.data(); }
+
+        void fill(const float value) {
+            for (float& f : data)
+                f = value;
+        }
+
+        // (i, j) access (row i, column j)
+        float& operator()(const usize i, const usize j)       { return data[i * cols + j]; }
+        const float& operator()(const usize i, const usize j) const { return data[i * cols + j]; }
     };
 }

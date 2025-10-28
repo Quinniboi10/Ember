@@ -13,7 +13,9 @@ namespace Ember {
             std::vector<float> input;
             std::vector<float> target;
 
-            DataPoint(const std::vector<float>& input, const std::vector<float>& target) : input(input), target(target) {}
+            DataPoint() = default;
+            DataPoint(std::vector<float>&& input, std::vector<float>&& target)
+                : input(std::move(input)), target(std::move(target)) {}
         };
 
         struct DataLoader {
@@ -86,7 +88,7 @@ namespace Ember {
             std::string dataDir;
             std::vector<std::string> types;
             std::vector<u64> samplesPerType;
-            std::mt19937 rng{ std::random_device{}() };
+            std::vector<std::vector<std::string>> allImages;
 
             usize width;
             usize height;
