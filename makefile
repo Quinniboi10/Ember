@@ -22,7 +22,7 @@ endif
 IS_ARM := $(filter ARM arm64 aarch64 arm%,$(ARCH))
 
 ifeq ($(IS_ARM),)
-  LINKFLAGS := -fuse-ld=lld -pthread -lopenblas
+  LINKFLAGS := -fuse-ld=lld -pthread -lopenblas -fopenmp
   ARCHFLAGS := -march=native
 else
   LINKFLAGS :=

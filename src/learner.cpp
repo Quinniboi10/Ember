@@ -27,16 +27,21 @@ namespace Ember {
 
     void Learner::applyGradients(const usize batchSize, const std::vector<BlasMatrix>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum) {
         const float batchScalar = 1.0f / batchSize;
-        // Apply gradients to weights and biases
+        // Apply gradients to the optimizer
         for (usize l = net.layers.size() - 1; l > 0; l--) {
-            if (const auto& currLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
+            if (dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
                 assert(optimizer.weightGradients[l].data.size() == currLayer->weights.data.size());
                 assert(optimizer.biasGradients[l].size() == currLayer->biases.size());
 
-                for (usize i = 0; i < optimizer.weightGradients[l].data.size(); i++)
-                    optimizer.weightGradients[l].data[i] += weightGradAccum[l].data[i] * batchScalar;
-                for (usize i = 0; i < currLayer->size; i++)
-                    optimizer.biasGradients[l][i] += biasGradAccum[l][i] * batchScalar;
+                // Weights
+                cblas_saxpy(optimizer.weightGradients[l].data.size(), batchScalar,
+                            weightGradAccum[l].ptr(), 1,
+                            optimizer.weightGradients[l].ptr(), 1);
+
+                // Biases
+                cblas_saxpy(optimizer.biasGradients[l].size(), batchScalar,
+                            biasGradAccum[l].ptr(), 1,
+                            optimizer.biasGradients[l].ptr(), 1);
             }
         }
     }
@@ -88,6 +93,10 @@ namespace Ember {
             return std::pair<float, float>{ loss / (testSize ? testSize : 1), numCorrect / static_cast<float>(testSize ? testSize : 1) };
         };
 
+        // Store the compute layers so RTTI isn't done on-the-fly
+        std::vector<internal::ComputeLayer*> computeLayers;
+        std::vector<usize> computeLayerIndexes;
+
         Stopwatch<std::chrono::milliseconds> stopwatch;
 
         for (const auto& c : callbacks)
@@ -107,9 +116,12 @@ namespace Ember {
         std::cout << "Epoch    Train loss    Test loss    Test accuracy        Time\n\n" << std::endl;
 
         for (usize i = 1; i < net.layers.size(); i++) {
-            if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
+            if (auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
                 weightGradAccum[i].resize(compLayer->weights.rows, compLayer->weights.cols);
                 biasGradAccum[i].resize(compLayer->biases.size());
+
+                computeLayers.push_back(compLayer);
+                computeLayerIndexes.push_back(i);
             }
         }
 
@@ -172,23 +184,16 @@ namespace Ember {
                     const auto gradients = backward(net, data.target);
 
                     // Accumulate gradients
-                    for (usize l = 1; l < net.layers.size(); l++) {
-                        if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
-                            for (u64 idx = 0; idx < compLayer->weights.data.size(); idx++) {
-                                assert(l < weightGradAccum.size());
-                                assert(idx < weightGradAccum[l].data.size());
-                                assert(idx < gradients[l].weightGrad.data.size());
+                    for (usize i = 0; i < computeLayers.size(); i++) {
+                        const usize l = computeLayerIndexes[i];
+                        const auto* layer = computeLayers[i];
+                        cblas_saxpy(layer->weights.data.size(), 1.0f,
+                                    gradients[l].weightGrad.ptr(), 1,
+                                    weightGradAccum[l].ptr(), 1);
 
-                                weightGradAccum[l].data[idx] += gradients[l].weightGrad.data[idx];
-                            }
-                            for (usize i = 0; i < compLayer->size; i++) {
-                                assert(l < biasGradAccum.size());
-                                assert(i < biasGradAccum[l].size());
-                                assert(i < gradients[l].biasGrad.size());
-
-                                biasGradAccum[l][i] += gradients[l].biasGrad[i];
-                            }
-                        }
+                        cblas_saxpy(layer->biases.size(), 1.0f,
+                                    gradients[l].biasGrad.ptr(), 1,
+                                    biasGradAccum[l].ptr(), 1);
                     }
                 }
                 applyGradients(batchSize, weightGradAccum, biasGradAccum);
