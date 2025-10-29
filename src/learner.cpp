@@ -1,5 +1,6 @@
 #include "learner.h"
 #include "progbar.h"
+#include "util.h"
 
 #include <algorithm>
 
@@ -111,7 +112,7 @@ namespace Ember {
                 goto afterFit;
         }
 
-        fmt::println("Training for {} batches with {} batches per epoch", batchesPerEpoch * epochs, batchesPerEpoch);
+        fmt::println("Training for {} batches with {} batches per epoch", formatNum(batchesPerEpoch * epochs), formatNum(batchesPerEpoch));
 
         std::cout << "Epoch    Train loss    Test loss    Test accuracy        Time\n\n" << std::endl;
 

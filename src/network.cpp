@@ -1,4 +1,5 @@
 #include "network.h"
+#include "util.h"
 
 namespace Ember {
     void Network::forward(const Tensor<1>& input, const usize threads) {
@@ -14,9 +15,13 @@ namespace Ember {
     }
 
     std::ostream& operator<<(std::ostream& os, const Network& net) {
+        u64 params = 0;
         os << fmt::format("Neural network consisting of {} layers\n", net.layers.size());
-        for (usize i = 0; i < net.layers.size(); i++)
+        for (usize i = 0; i < net.layers.size(); i++) {
             os << fmt::format("    {}: {}\n", i, net.layers[i]->str());
+            params += net.layers[i]->numParams();
+        }
+        os << fmt::format("Network consists of {} learnable parameters", formatNum(params));
         return os;
     }
 };

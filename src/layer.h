@@ -30,6 +30,7 @@ namespace Ember {
             virtual std::unique_ptr<Layer> clone() = 0;
 
             virtual std::string str() const = 0;
+            virtual u64 numParams() const = 0;
             virtual ~Layer() = default;
         };
 
@@ -52,6 +53,8 @@ namespace Ember {
 
         struct ActivationLayer : Layer {
             virtual Tensor<1> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
+
+            u64 numParams() const override { return 0; }
         };
     }
 
@@ -68,6 +71,8 @@ namespace Ember {
             std::string str() const override {
                 return fmt::format("Input - {} features", size);
             }
+
+            u64 numParams() const override { return 0; }
         };
 
         struct Linear : internal::ComputeLayer {
@@ -131,6 +136,7 @@ namespace Ember {
             std::string str() const override {
                 return fmt::format("Linear - {} input features and {} output features", weights.cols, size);
             }
+            u64 numParams() const override { return weights.data.size() + biases.size(); }
         };
     }
 }
