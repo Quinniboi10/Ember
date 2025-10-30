@@ -35,7 +35,7 @@ namespace Ember {
         };
 
         struct ComputeLayer : Layer {
-            BlasMatrix weights; // previousSize rows and size cols
+            Tensor<2> weights; // previousSize rows and size cols
             Tensor<1> biases;
 
             ComputeLayer() = delete;
@@ -48,7 +48,7 @@ namespace Ember {
                 this->weights.resize(size, previousSize);
             }
 
-            virtual std::tuple<Tensor<1>, BlasMatrix, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
+            virtual std::tuple<Tensor<1>, Tensor<2>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
         };
 
         struct ActivationLayer : Layer {
@@ -62,7 +62,7 @@ namespace Ember {
         struct Input : internal::Layer {
             explicit Input(const usize size) : Layer(size) {}
 
-            void forward(const Layer& previous) override {}
+            void forward([[maybe_unused]] const Layer& previous) override {}
 
             std::unique_ptr<Layer> clone() override {
                 return std::make_unique<Input>(*this);
@@ -99,7 +99,7 @@ namespace Ember {
                     outputSize,            // rows of W
                     inputSize,             // cols of W
                     1.0f,                  // alpha
-                    weights.data.data(),   // W data
+                    weights.ptr(),         // W data
                     inputSize,             // lda (leading dimension, number of cols)
                     previous.values.ptr(), // x vector
                     1,                     // incx
@@ -109,20 +109,20 @@ namespace Ember {
                 );
             }
 
-            std::tuple<Tensor<1>, BlasMatrix, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const override {
+            std::tuple<Tensor<1>, Tensor<2>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const override {
                 const usize inputSize  = previous.size;
                 const usize outputSize = size;
 
-                Tensor<1> gradInput(inputSize, 0.0f);
-                BlasMatrix weightGrad(weights.rows, weights.cols);
-                Tensor<1> biasGrad(size, 0.0f);
+                Tensor<1> gradInput(inputSize);
+                Tensor<2> weightGrad(weights.dims());
+                Tensor<1> biasGrad(size);
 
                 // Compute gradients
                 for (usize curr = 0; curr < outputSize; curr++) {
                     biasGrad[curr] = gradOutput[curr];
                     for (usize prev = 0; prev < inputSize; prev++) {
-                        gradInput[prev] += weights(curr, prev) * gradOutput[curr];
-                        weightGrad(curr, prev) += previous.values[prev] * gradOutput[curr];
+                        gradInput[prev] += weights[curr, prev] * gradOutput[curr];
+                        weightGrad[curr, prev] += previous.values[prev] * gradOutput[curr];
                     }
                 }
 
@@ -134,9 +134,9 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("Linear - {} input features and {} output features", weights.cols, size);
+                return fmt::format("Linear - {} input features and {} output features", weights.dim(1), size);
             }
-            u64 numParams() const override { return weights.data.size() + biases.size(); }
+            u64 numParams() const override { return weights.size() + biases.size(); }
         };
     }
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include <cassert>
 #include <cstdint>
 
 #ifdef _WIN32
@@ -11,12 +10,27 @@
 #include <io.h>
 #endif
 
+#ifndef NDEBUG
+#include <boost/stacktrace.hpp>
+#endif
+
+#undef assert
+
 namespace Ember {
-#define exitWithMsg(msg, code) \
-{ \
-std::cout << "**ERROR**  " << msg << std::endl; \
-std::exit(code); \
-}
+    #define exitWithMsg(msg, code) { \
+        std::cout << "**ERROR**  " << msg << std::endl; \
+        std::exit(code); \
+    }
+
+    #ifndef NDEBUG
+        #define assert(x) \
+            if (!(x)) [[unlikely]] { \
+                std::cout << std::endl << std::endl << boost::stacktrace::stacktrace() << std::endl << "Assertion failed: " << #x << ", file " << __FILE__ << ", line " << __LINE__ << std::endl; \
+                std::terminate(); \
+            }
+    #else
+        #define assert(x) ;
+    #endif
 
     using u64 = uint64_t;
     using u32 = uint32_t;

@@ -26,7 +26,7 @@ namespace Ember {
         return gradients;
     }
 
-    void Learner::applyGradients(const usize batchSize, const std::vector<BlasMatrix>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum) {
+    void Learner::applyGradients(const usize batchSize, const std::vector<Tensor<2>>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum) {
         const float batchScalar = 1.0f / batchSize;
         // Apply gradients to the optimizer
         for (usize l = net.layers.size() - 1; l > 0; l--) {
@@ -61,7 +61,7 @@ namespace Ember {
         std::pair<float, float> test{};
 
         // Accumulators
-        std::vector<BlasMatrix> weightGradAccum(net.layers.size());
+        std::vector<Tensor<2>> weightGradAccum(net.layers.size());
         std::vector<Tensor<1>> biasGradAccum(net.layers.size());
 
         const u64 batchSize = dataLoader.batchSize;
@@ -118,7 +118,7 @@ namespace Ember {
 
         for (usize i = 1; i < net.layers.size(); i++) {
             if (auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
-                weightGradAccum[i].resize(compLayer->weights.rows, compLayer->weights.cols);
+                weightGradAccum[i].resize(compLayer->weights.dims());
                 biasGradAccum[i].resize(compLayer->biases.size());
 
                 computeLayers.push_back(compLayer);

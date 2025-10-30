@@ -44,7 +44,7 @@ namespace Ember {
             else
                 for (auto& v : values) v /= sum;
         }
-        Tensor<1> Softmax::backward(const Layer& previous, const Tensor<1>& gradOutput) const {
+        Tensor<1> Softmax::backward([[maybe_unused]] const Layer& previous, const Tensor<1>& gradOutput) const {
             const usize n = gradOutput.size();
             Tensor<1> result(n);
 

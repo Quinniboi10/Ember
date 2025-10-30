@@ -9,11 +9,11 @@
 namespace Ember {
     namespace internal {
         struct Gradient {
-            BlasMatrix weightGrad;
+            Tensor<2> weightGrad;
             Tensor<1> biasGrad;
 
             Gradient() = default;
-            Gradient(const BlasMatrix& weightGrad, const Tensor<1>& biasGrad) : weightGrad(weightGrad), biasGrad(biasGrad) {}
+            Gradient(const Tensor<2>& weightGrad, const Tensor<1>& biasGrad) : weightGrad(weightGrad), biasGrad(biasGrad) {}
         };
     }
 
@@ -56,7 +56,7 @@ namespace Ember {
         std::vector<internal::Gradient> backward(const Network& net, const std::vector<float>& target) const;
 
         // Apply a gradient to the optimizer
-        void applyGradients(const usize batchSize, const std::vector<BlasMatrix>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum);
+        void applyGradients(const usize batchSize, const std::vector<Tensor<2>>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum);
 
         // Main trainer functionality is through this function
         // Trains a neural network
