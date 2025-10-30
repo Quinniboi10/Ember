@@ -11,7 +11,7 @@ namespace Ember {
         struct ReLU : internal::ActivationLayer {
             void forward(const Layer& previous) override;
 
-            Tensor<1> backward(const Layer& previous, const Tensor<1>& gradOutput) const override;
+            Tensor backward(const Layer& previous, const Tensor& gradOutput) const override;
 
             std::unique_ptr<Layer> clone() override {
                 return std::make_unique<ReLU>(*this);
@@ -25,7 +25,7 @@ namespace Ember {
         struct Softmax : internal::ActivationLayer {
             void forward(const Layer& previous) override;
 
-            Tensor<1> backward(const Layer& previous, const Tensor<1>& gradOutput) const override;
+            Tensor backward(const Layer& previous, const Tensor& gradOutput) const override;
 
             std::unique_ptr<Layer> clone() override {
                 return std::make_unique<Softmax>(*this);

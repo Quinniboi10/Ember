@@ -10,7 +10,7 @@
 namespace Ember {
     namespace internal {
         struct Layer {
-            Tensor<1> values;
+            Tensor values;
 
             usize size;
 
@@ -35,8 +35,8 @@ namespace Ember {
         };
 
         struct ComputeLayer : Layer {
-            Tensor<2> weights; // previousSize rows and size cols
-            Tensor<1> biases;
+            Tensor weights; // previousSize rows and size cols
+            Tensor biases;
 
             ComputeLayer() = delete;
 
@@ -48,11 +48,11 @@ namespace Ember {
                 this->weights.resize(size, previousSize);
             }
 
-            virtual std::tuple<Tensor<1>, Tensor<2>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
+            virtual std::tuple<Tensor, Tensor, Tensor> backward(const Layer& previous, const Tensor& gradOutput) const = 0;
         };
 
         struct ActivationLayer : Layer {
-            virtual Tensor<1> backward(const Layer& previous, const Tensor<1>& gradOutput) const = 0;
+            virtual Tensor backward(const Layer& previous, const Tensor& gradOutput) const = 0;
 
             u64 numParams() const override { return 0; }
         };
@@ -109,13 +109,14 @@ namespace Ember {
                 );
             }
 
-            std::tuple<Tensor<1>, Tensor<2>, Tensor<1>> backward(const Layer& previous, const Tensor<1>& gradOutput) const override {
+            // Returns gradInput, weightGrad, biasGrad
+            std::tuple<Tensor, Tensor, Tensor> backward(const Layer& previous, const Tensor& gradOutput) const override {
                 const usize inputSize  = previous.size;
                 const usize outputSize = size;
 
-                Tensor<1> gradInput(inputSize);
-                Tensor<2> weightGrad(weights.dims());
-                Tensor<1> biasGrad(size);
+                Tensor gradInput(inputSize);
+                Tensor weightGrad(weights.dims());
+                Tensor biasGrad(size);
 
                 // Compute gradients
                 for (usize curr = 0; curr < outputSize; curr++) {
