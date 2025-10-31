@@ -13,47 +13,58 @@ namespace Ember {
         concept UsizeLike = std::is_same_v<std::decay_t<T>, usize>;
     }
 
-    template<usize dimensionality>
     struct Tensor {
-        std::array<usize, dimensionality> dimensions;
+        usize dimensionality;
+
+        std::vector<usize> dimensions;
         std::vector<float> data;
+        std::vector<usize> strides;
 
         Tensor() = default;
 
         template<internal::UsizeLike... Args>
         explicit Tensor(const Args... args) {
-            static_assert(sizeof...(Args) == dimensionality, "Tensor must have the same size and dimensionality");
+            dimensionality = sizeof...(Args);
             dimensions = { args... };
             data.resize((args * ...));
+            calculateStrides();
         }
 
-        explicit Tensor(const std::array<usize, dimensionality>& dimensions) : dimensions(dimensions) {
-            u64 size = 1;
+        explicit Tensor(const std::vector<usize>& dimensions) : dimensions(dimensions) {
+            dimensionality = dimensions.size();
 
+            u64 size = 1;
             for (const usize d : dimensions)
                 size *= d;
             data.resize(size);
+            calculateStrides();
         }
 
-        Tensor(const std::vector<float>& input) requires (dimensionality == 1) {
+        Tensor(const std::vector<float>& input)  {
+            dimensionality = 1;
+            dimensions.resize(1);
             dimensions[0] = input.size();
             data = input;
+            calculateStrides();
         }
 
         template<internal::UsizeLike... Args>
         void resize(Args... args) {
-            static_assert(sizeof...(Args) == dimensionality, "Resized tensor must have the same dimensionality");
+            dimensionality = sizeof...(Args);
             dimensions = { args... };
             data.resize((args * ...));
+            calculateStrides();
         }
 
-        void resize(const std::array<usize, dimensionality>& newDims) {
-            u64 size = 1;
+        void resize(const std::vector<usize>& newDims) {
+            dimensionality = newDims.size();
             dimensions = newDims;
 
+            u64 size = 1;
             for (const usize d : dimensions)
                 size *= d;
             data.resize(size);
+            calculateStrides();
         }
 
         float* ptr() { return data.data(); }
@@ -66,8 +77,17 @@ namespace Ember {
         auto end() const { return data.end(); }
 
         void fill(const float value) {
-            for (float& f : data)
-                f = value;
+            std::fill(data.begin(), data.end(), value);
+        }
+
+        void calculateStrides() {
+            strides.resize(dimensionality);
+            if (dimensionality == 0) return;
+
+            strides[dimensionality - 1] = 1;
+
+            for (int i = dimensionality - 2; i >= 0; i--)
+                strides[i] = strides[i + 1] * dimensions[i + 1];
         }
 
         // Get the dimensionality
@@ -75,37 +95,44 @@ namespace Ember {
         const auto& dims() const { return dimensions; }
         usize dim(const usize idx) const { return dimensions[idx]; }
 
+
+        float& operator[](const usize i) {
+            assert(dimensionality == 1);
+            return data[i];
+        }
+
+        const float& operator[](const usize i) const {
+            assert(dimensionality == 1);
+            return data[i];
+        }
+
+        float& operator()(const usize i, const usize j) {
+            assert(dimensionality == 2);
+            return data[i * strides[0] + j];
+        }
+
+        const float& operator()(const usize i, const usize j) const {
+            assert(dimensionality == 2);
+            return data[i * strides[0] + j];
+        }
+
         template<typename... Args>
         float& operator[](Args... args) {
-            static_assert(sizeof...(Args) == dimensionality, "Access must match tensor dimensionality");
-            std::array<usize, dimensionality> indices{ static_cast<usize>(args)... };
+            assert(sizeof...(Args) == dimensionality);
             usize idx = 0;
-            usize stride = 1;
-
-            for (int i = dimensionality - 1; i >= 0; i--) {
-                idx += indices[i] * stride;
-                stride *= dimensions[i];
-            }
-
+            usize strideIdx = 0;
+            ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
             assert(idx < data.size());
-
             return data[idx];
         }
 
         template<typename... Args>
         const float& operator[](Args... args) const {
-            static_assert(sizeof...(Args) == dimensionality, "Access must match tensor dimensionality");
-            std::array<usize, dimensionality> indices{ static_cast<usize>(args)... };
+            assert(sizeof...(Args) == dimensionality);
             usize idx = 0;
-            usize stride = 1;
-
-            for (int i = dimensionality - 1; i >= 0; i--) {
-                idx += indices[i] * stride;
-                stride *= dimensions[i];
-            }
-
+            usize strideIdx = 0;
+            ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
             assert(idx < data.size());
-
             return data[idx];
         }
     };

@@ -18,8 +18,8 @@ namespace Ember {
             for (usize prev = 0; prev < previous.size; prev++)
                 values[prev] = internal::activations::ReLU(previous.values[prev]);
         }
-        Tensor<1> ReLU::backward(const Layer& previous, const Tensor<1>& gradOutput) const {
-            Tensor<1> result(gradOutput.size());
+        Tensor ReLU::backward(const Layer& previous, const Tensor& gradOutput) const {
+            Tensor result(gradOutput.size());
             for (usize prev = 0; prev < gradOutput.size(); prev++)
                 result[prev] = gradOutput[prev] * internal::activations::derivatives::ReLU(previous.values[prev]);
 
@@ -44,9 +44,9 @@ namespace Ember {
             else
                 for (auto& v : values) v /= sum;
         }
-        Tensor<1> Softmax::backward([[maybe_unused]] const Layer& previous, const Tensor<1>& gradOutput) const {
+        Tensor Softmax::backward([[maybe_unused]] const Layer& previous, const Tensor& gradOutput) const {
             const usize n = gradOutput.size();
-            Tensor<1> result(n);
+            Tensor result(n);
 
             // Compute dot product of gradOutput and softmax output (values)
             float dot = 0.0f;

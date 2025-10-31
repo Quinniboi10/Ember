@@ -8,7 +8,7 @@ namespace Ember {
     std::vector<internal::Gradient> Learner::backward(const Network& net, const std::vector<float> &target) const {
         std::vector<internal::Gradient> gradients(net.layers.size());
 
-        Tensor<1> error = lossFunc->backward(net.output(), target);
+        Tensor error = lossFunc->backward(net.output(), target);
 
         for (usize idx = net.layers.size() - 1; idx > 0; idx--) {
             auto* layer = net.layers[idx].get();
@@ -26,7 +26,7 @@ namespace Ember {
         return gradients;
     }
 
-    void Learner::applyGradients(const usize batchSize, const std::vector<Tensor<2>>& weightGradAccum, const std::vector<Tensor<1>>& biasGradAccum) {
+    void Learner::applyGradients(const usize batchSize, const std::vector<Tensor>& weightGradAccum, const std::vector<Tensor>& biasGradAccum) {
         const float batchScalar = 1.0f / batchSize;
         // Apply gradients to the optimizer
         for (usize l = net.layers.size() - 1; l > 0; l--) {
@@ -61,8 +61,8 @@ namespace Ember {
         std::pair<float, float> test{};
 
         // Accumulators
-        std::vector<Tensor<2>> weightGradAccum(net.layers.size());
-        std::vector<Tensor<1>> biasGradAccum(net.layers.size());
+        std::vector<Tensor> weightGradAccum(net.layers.size());
+        std::vector<Tensor> biasGradAccum(net.layers.size());
 
         const u64 batchSize = dataLoader.batchSize;
         const u64 batchesPerEpoch = dataLoader.numSamples / batchSize;

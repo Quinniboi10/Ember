@@ -20,7 +20,7 @@ namespace Ember {
             for (auto& grad : weightGradients)
                 grad.fill(0);
 
-            for (Tensor<1>& grad : biasGradients)
+            for (auto& grad : biasGradients)
                 grad.fill(0);
         }
 

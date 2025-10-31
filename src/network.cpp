@@ -2,7 +2,7 @@
 #include "util.h"
 
 namespace Ember {
-    void Network::forward(const Tensor<1>& input, const usize threads) {
+    void Network::forward(const Tensor& input, const usize threads) {
         openblas_set_num_threads(threads);
         layers[0]->values = input;
 
@@ -10,7 +10,7 @@ namespace Ember {
             layers[i]->forward(*layers[i - 1]);
     }
 
-    const Tensor<1>& Network::output() const {
+    const Tensor& Network::output() const {
         return layers.back()->values;
     }
 

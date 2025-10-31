@@ -1,7 +1,7 @@
 #include "loss.h"
 
 namespace Ember::loss {
-    float MeanSquaredError::forward(const Tensor<1>& output, const std::vector<float>& target) {
+    float MeanSquaredError::forward(const Tensor& output, const std::vector<float>& target) {
         assert(output.size() == target.size());
 
         float loss = 0;
@@ -10,8 +10,8 @@ namespace Ember::loss {
         return loss / output.size();
     }
 
-    Tensor<1> MeanSquaredError::backward(const Tensor<1>& output, const std::vector<float>& target) {
-        Tensor<1> gradient;
+    Tensor MeanSquaredError::backward(const Tensor& output, const std::vector<float>& target) {
+        Tensor gradient;
         gradient.resize(output.size());
 
         const float scalar = 2.0f / output.size();
@@ -21,7 +21,7 @@ namespace Ember::loss {
         return gradient;
     }
 
-    float CrossEntropyLoss::forward(const Tensor<1>& output, const std::vector<float>& target) {
+    float CrossEntropyLoss::forward(const Tensor& output, const std::vector<float>& target) {
         assert(output.size() == target.size());
 
         float loss = 0.0;
@@ -34,10 +34,10 @@ namespace Ember::loss {
         return loss / output.size();
     }
 
-    Tensor<1> CrossEntropyLoss::backward(const Tensor<1>& output, const std::vector<float>& target) {
+    Tensor CrossEntropyLoss::backward(const Tensor& output, const std::vector<float>& target) {
         assert(output.size() == target.size());
 
-        Tensor<1> gradient;
+        Tensor gradient;
         gradient.resize(output.size());
 
         const float scalar = 1.0f / output.size();
