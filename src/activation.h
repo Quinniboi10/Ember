@@ -18,7 +18,7 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("ReLU - applied to {} features", size);
+                return fmt::format("ReLU - applied to {} features", outputSize);
             }
         };
 
@@ -32,7 +32,7 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("Softmax - applied to {} features", size);
+                return fmt::format("Softmax - applied to {} features", outputSize);
             }
         };
     }

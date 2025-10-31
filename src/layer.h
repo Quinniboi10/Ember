@@ -9,10 +9,14 @@
 
 namespace Ember {
     namespace internal {
+        // The foundation for all layers
+        // The values tensor should store
+        // the output of any given layer
+        // regardless of any internal compute
         struct Layer {
             Tensor values;
 
-            usize size;
+            usize outputSize;
 
             Layer() = default;
 
@@ -21,7 +25,7 @@ namespace Ember {
             }
 
             void setSize(const usize size) {
-                this->size = size;
+                outputSize = size;
                 values.resize(size);
             }
 
@@ -44,9 +48,7 @@ namespace Ember {
                 this->biases.resize(size);
             }
 
-            void init(const usize previousSize) {
-                this->weights.resize(size, previousSize);
-            }
+            virtual void init(const usize previousSize) = 0;
 
             virtual std::tuple<Tensor, Tensor, Tensor> backward(const Layer& previous, const Tensor& gradOutput) const = 0;
         };
@@ -69,7 +71,7 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("Input - {} features", size);
+                return fmt::format("Input - {} features", outputSize);
             }
 
             u64 numParams() const override { return 0; }
@@ -82,8 +84,8 @@ namespace Ember {
             // Forward pass
             // Fill values in the current layer
             void forward(const Layer& previous) override {
-                const usize inputSize  = previous.size;
-                const usize outputSize = size;
+                const usize inputSize  = previous.values.size();
+                const usize outputSize = values.size();
 
                 // Copy biases to output first
                 std::memcpy(values.ptr(), biases.ptr(), outputSize * sizeof(float));
@@ -109,14 +111,17 @@ namespace Ember {
                 );
             }
 
+            void init(const usize previousSize) override {
+                this->weights.resize(outputSize, previousSize);
+            }
+
             // Returns gradInput, weightGrad, biasGrad
             std::tuple<Tensor, Tensor, Tensor> backward(const Layer& previous, const Tensor& gradOutput) const override {
-                const usize inputSize  = previous.size;
-                const usize outputSize = size;
+                const usize inputSize  = previous.outputSize;
 
                 Tensor gradInput(inputSize);
                 Tensor weightGrad(weights.dims());
-                Tensor biasGrad(size);
+                Tensor biasGrad(outputSize);
 
                 // Compute gradients
                 for (usize curr = 0; curr < outputSize; curr++) {
@@ -135,7 +140,7 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("Linear - {} input features and {} output features", weights.dim(1), size);
+                return fmt::format("Linear - {} input features and {} output features", weights.dim(1), outputSize);
             }
             u64 numParams() const override { return weights.size() + biases.size(); }
         };

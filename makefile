@@ -59,7 +59,7 @@ endif
 
 # Debug build
 .PHONY: debug
-debug: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
+debug: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -DBOOST_STACKTRACE_USE_ADDR2LINE -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
 debug: all
 
 # Debug build

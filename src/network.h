@@ -27,7 +27,7 @@ namespace Ember {
             for (usize l = 1; l < layers.size(); l++) {
                 // Try to set the size of an activation layer
                 if (auto* activationLayer = dynamic_cast<internal::ActivationLayer*>(layers[l].get())) {
-                    activationLayer->setSize(layers[l - 1]->size);
+                    activationLayer->setSize(layers[l - 1]->outputSize);
                     continue;
                 }
                 auto* layer = dynamic_cast<internal::ComputeLayer*>(layers[l].get());
@@ -36,10 +36,10 @@ namespace Ember {
                 if (layer == nullptr)
                     continue;
 
-                layer->init(layers[l - 1]->size);
+                layer->init(layers[l - 1]->outputSize);
 
-                const usize fanIn = layers[l - 1]->size;
-                const usize fanOut = layer->size;
+                const usize fanIn = layers[l - 1]->outputSize;
+                const usize fanOut = layer->outputSize;
 
                 if (useXavierInit) {
                     const float limit = std::sqrt(6.0f / (fanIn + fanOut));

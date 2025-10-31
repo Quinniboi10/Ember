@@ -106,12 +106,12 @@ namespace Ember {
             return data[i];
         }
 
-        float& operator()(const usize i, const usize j) {
+        float& operator[](const usize i, const usize j) {
             assert(dimensionality == 2);
             return data[i * strides[0] + j];
         }
 
-        const float& operator()(const usize i, const usize j) const {
+        const float& operator[](const usize i, const usize j) const {
             assert(dimensionality == 2);
             return data[i * strides[0] + j];
         }

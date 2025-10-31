@@ -1,8 +1,11 @@
+#include "convolution.h"
 #include "learner.h"
 
 int main() {
     Ember::Network net(
         Ember::layers::Input(28 * 28),
+        Ember::layers::Convolution(28, 28, 6, 3),
+        Ember::activations::ReLU(),
         Ember::layers::Linear(512),
         Ember::activations::ReLU(),
         Ember::layers::Linear(10),
@@ -22,5 +25,5 @@ int main() {
         Ember::callbacks::AutosaveBest("../net.bin")
     );
 
-    learner.learn(0.01, 20, 2);
+    learner.learn(0.01, 20, 4);
 }

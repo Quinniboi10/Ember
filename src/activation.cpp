@@ -15,7 +15,7 @@ namespace Ember {
 
     namespace activations {
         void ReLU::forward(const Layer& previous) {
-            for (usize prev = 0; prev < previous.size; prev++)
+            for (usize prev = 0; prev < previous.outputSize; prev++)
                 values[prev] = internal::activations::ReLU(previous.values[prev]);
         }
         Tensor ReLU::backward(const Layer& previous, const Tensor& gradOutput) const {
@@ -28,19 +28,19 @@ namespace Ember {
 
 
         void Softmax::forward(const Layer& previous) {
-            values.resize(previous.size);
+            values.resize(previous.outputSize);
             float maxIn = previous.values[0];
-            for (usize i = 1; i < previous.size; i++)
+            for (usize i = 1; i < previous.outputSize; i++)
                 maxIn = std::max(maxIn, previous.values[i]);
 
             float sum = 0.0f;
-            for (usize i = 0; i < previous.size; i++) {
+            for (usize i = 0; i < previous.outputSize; i++) {
                 values[i] = std::exp(previous.values[i] - maxIn);
                 sum += values[i];
             }
 
             if (sum == 0.0f)
-                for (auto& v : values) v = 1.0f / previous.size;
+                for (auto& v : values) v = 1.0f / previous.outputSize;
             else
                 for (auto& v : values) v /= sum;
         }
