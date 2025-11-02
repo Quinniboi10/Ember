@@ -5,11 +5,10 @@
 #include <algorithm>
 
 namespace Ember {
-    std::vector<internal::Gradient> Learner::backward(const Network& net, const std::vector<float> &target) const {
-        std::vector<internal::Gradient> gradients(net.layers.size());
-
+    void Learner::backward(const Network& net, const Tensor& target) const {
         Tensor error = lossFunc->backward(net.output(), target);
 
+        const float batchScalar = 1.0f / net.layers[0]->values.dim(0);
         for (usize idx = net.layers.size() - 1; idx > 0; idx--) {
             auto* layer = net.layers[idx].get();
 
@@ -18,31 +17,18 @@ namespace Ember {
             }
             else if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(layer)) {
                 auto [gradInput, weightGrad, biasGrad] = compLayer->backward(*net.layers[idx - 1], error);
-                gradients[idx] = internal::Gradient(weightGrad, biasGrad);
-                error = gradInput;
-            }
-        }
-
-        return gradients;
-    }
-
-    void Learner::applyGradients(const usize batchSize, const std::vector<Tensor>& weightGradAccum, const std::vector<Tensor>& biasGradAccum) {
-        const float batchScalar = 1.0f / batchSize;
-        // Apply gradients to the optimizer
-        for (usize l = net.layers.size() - 1; l > 0; l--) {
-            if (const auto* currLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[l].get())) {
-                assert(optimizer.weightGradients[l].data.size() == currLayer->weights.data.size());
-                assert(optimizer.biasGradients[l].size() == currLayer->biases.size());
 
                 // Weights
-                cblas_saxpy(optimizer.weightGradients[l].data.size(), batchScalar,
-                            weightGradAccum[l].ptr(), 1,
-                            optimizer.weightGradients[l].ptr(), 1);
+                cblas_saxpy(optimizer.weightGradients[idx].size(), batchScalar,
+                            weightGrad.ptr(), 1,
+                            optimizer.weightGradients[idx].ptr(), 1);
 
                 // Biases
-                cblas_saxpy(optimizer.biasGradients[l].size(), batchScalar,
-                            biasGradAccum[l].ptr(), 1,
-                            optimizer.biasGradients[l].ptr(), 1);
+                cblas_saxpy(optimizer.biasGradients[idx].size(), batchScalar,
+                            biasGrad.ptr(), 1,
+                            optimizer.biasGradients[idx].ptr(), 1);
+
+                error = gradInput;
             }
         }
     }
@@ -60,38 +46,35 @@ namespace Ember {
         // Initialization of stuff
         std::pair<float, float> test{};
 
-        // Accumulators
-        std::vector<Tensor> weightGradAccum(net.layers.size());
-        std::vector<Tensor> biasGradAccum(net.layers.size());
-
         const u64 batchSize = dataLoader.batchSize;
         const u64 batchesPerEpoch = dataLoader.numSamples / batchSize;
-
-        double trainLoss{};
 
         ProgressBar progressBar{};
 
         // Returns { test loss, test accuracy }
         const auto getTestLossAcc = [&]() {
-            float loss = 0;
             usize numCorrect = 0;
             dataLoader.loadTestSet();
-            const usize testSize = dataLoader.testSetSize();
-            while (dataLoader.hasNext()) {
-                internal::DataPoint data = dataLoader.next();
-                net.forward(data.input, threads);
-                loss += lossFunc->forward(net.layers.back()->values, data.target);
+            const internal::DataPoint& data = dataLoader.batchData();
+            const usize testSize = data.input.dim(0);
+
+            net.forward(data.input, threads);
+
+            const float loss = lossFunc->forward(net.output(), data.target);
+
+            for (usize i = 0; i < data.target.dim(0); i++) {
                 usize guess = 0;
                 usize goal = 0;
-                for (usize i = 0; i < data.target.size(); i++) {
-                    if (net.layers.back()->values[i] > net.layers.back()->values[guess])
-                        guess = i;
-                    if (data.target[i] > data.target[goal])
-                        goal = i;
+                for (usize j = 0; j < data.target.dim(1); j++) {
+                    if (net.output()[i, j] > net.output()[i, guess])
+                        guess = j;
+                    if (data.target[i, j] > data.target[goal])
+                        goal = j;
                 }
                 numCorrect += (guess == goal);
             }
-            return std::pair<float, float>{ loss / (testSize ? testSize : 1), numCorrect / static_cast<float>(testSize ? testSize : 1) };
+
+            return std::pair<float, float>{ loss / std::max<usize>(testSize, 1), numCorrect / static_cast<float>(testSize ? testSize : 1) };
         };
 
         // Store the compute layers so RTTI isn't done on-the-fly
@@ -118,9 +101,6 @@ namespace Ember {
 
         for (usize i = 1; i < net.layers.size(); i++) {
             if (auto* compLayer = dynamic_cast<internal::ComputeLayer*>(net.layers[i].get())) {
-                weightGradAccum[i].resize(compLayer->weights.dims());
-                biasGradAccum[i].resize(compLayer->biases.size());
-
                 computeLayers.push_back(compLayer);
                 computeLayerIndexes.push_back(i);
             }
@@ -162,53 +142,26 @@ namespace Ember {
                         goto afterFit;
                 }
 
-                // Reset accumulators per mini-batch
-                for (auto& t : weightGradAccum)
-                    t.fill(0);
-                for (auto& t : biasGradAccum)
-                    t.fill(0);
-
                 dataLoader.waitForBatch();
                 dataLoader.swapBuffers();
 
                 // Instantly start loading next batch
                 dataLoader.asyncPreloadBatch();
 
-                for (u64 sample = 0; sample < batchSize; sample++) {
-                    const internal::DataPoint& data = dataLoader.batchData(sample);
+                net.forward(dataLoader.batchData().input, threads);
+                trainLoss += lossFunc->forward(net.output(), dataLoader.batchData().target);
 
-                    net.forward(data.input, threads);
+                backward(net, dataLoader.batchData().target);
 
-                    // Accumulate training loss
-                    trainLoss += lossFunc->forward(net.output(), data.target);
-
-                    const auto gradients = backward(net, data.target);
-
-                    // Accumulate gradients
-                    for (usize i = 0; i < computeLayers.size(); i++) {
-                        const usize l = computeLayerIndexes[i];
-                        const auto* layer = computeLayers[i];
-                        cblas_saxpy(layer->weights.data.size(), 1.0f,
-                                    gradients[l].weightGrad.ptr(), 1,
-                                    weightGradAccum[l].ptr(), 1);
-
-                        cblas_saxpy(layer->biases.size(), 1.0f,
-                                    gradients[l].biasGrad.ptr(), 1,
-                                    biasGradAccum[l].ptr(), 1);
-                    }
-                }
-                applyGradients(batchSize, weightGradAccum, biasGradAccum);
                 optimizer.clipGrad(1);
                 optimizer.step(lr);
                 optimizer.zeroGrad();
 
-                this->trainLoss = trainLoss / currentBatch / batchSize;
-
                 internal::cursor::up();
                 internal::cursor::up();
                 internal::cursor::begin();
-                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}", epoch, trainLoss / currentBatch / batchSize, "Pending", "Pending", formatTime(stopwatch.elapsed()));
-                std::cout << progressBar.report(currentBatch, batchesPerEpoch, 63) << "      " << std::endl;
+                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}", epoch, trainLoss, "Pending", "Pending", formatTime(stopwatch.elapsed()));
+                std::cout << progressBar.report(currentBatch + 1, batchesPerEpoch, 63) << "      " << std::endl;
 
                 afterBatch:
                 for (const auto& c : callbacks)

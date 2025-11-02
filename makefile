@@ -43,13 +43,13 @@ all: $(EXE)
 
 # Build the objects
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(ARCHFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(ARCHFLAGS) -MMD -MP -c $< -o $@
 
 -include $(DEPS)
 
 # Link the executable
 $(EXE): $(OBJS)
-	$(CXX) $(CXXFLAGS) -MMD -MP $(OBJS) $(LINKFLAGS) -o $@
+	$(CXX) $(CXXFLAGS) $(OBJS) $(LINKFLAGS) -o $@
 
 # Files for make clean
 CLEAN_STUFF := $(EXE) Ember.exp Ember.lib Ember.pdb $(OBJS) $(DEPS)
@@ -59,7 +59,12 @@ endif
 
 # Debug build
 .PHONY: debug
-debug: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wall -Wextra
+debug: CXXFLAGS = -O3 -std=c++23 -flto -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
+debug: all
+
+# Debug build
+.PHONY: sanitize
+debug: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
 debug: all
 
 # Debug build

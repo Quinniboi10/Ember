@@ -10,19 +10,20 @@
 namespace Ember {
     namespace internal {
         struct Layer {
-            Tensor values;
+            Tensor values; // Dimensionality of 2
 
-            usize size;
+            usize size{};
 
             Layer() = default;
 
             explicit Layer(const usize size) {
-                setSize(size);
+                this->size = size;
+                values.resize(static_cast<usize>(1), size);
             }
 
-            void setSize(const usize size) {
-                this->size = size;
-                values.resize(size);
+            void setSize(const usize newSize) {
+                this->size = newSize;
+                values.resize(static_cast<usize>(1), size);
             }
 
             virtual void forward(const Layer& previous) = 0;
@@ -35,8 +36,8 @@ namespace Ember {
         };
 
         struct ComputeLayer : Layer {
-            Tensor weights; // previousSize rows and size cols
-            Tensor biases;
+            Tensor weights; // previousSize rows and size cols, dimensionality of 2
+            Tensor biases; // Dimensionality of 1
 
             ComputeLayer() = delete;
 
@@ -86,27 +87,29 @@ namespace Ember {
                 const usize outputSize = size;
 
                 // Copy biases to output first
-                std::memcpy(values.ptr(), biases.ptr(), outputSize * sizeof(float));
+                for (usize i = 0; i < values.dim(0); i++) {
+                    std::memcpy(&values[i, 0], biases.ptr(), outputSize * sizeof(float));
 
-                // Perform y = W^T * x + y (in-place)
-                // dimensions:
-                //   W: outputSize x inputSize
-                //   x: inputSize
-                //   y: outputSize
-                cblas_sgemv(
-                    CblasRowMajor,         // Memory layout
-                    CblasNoTrans,          // Don't transpose W to keep outputSize x inputSize
-                    outputSize,            // rows of W
-                    inputSize,             // cols of W
-                    1.0f,                  // alpha
-                    weights.ptr(),         // W data
-                    inputSize,             // lda (leading dimension, number of cols)
-                    previous.values.ptr(), // x vector
-                    1,                     // incx
-                    1.0f,                  // beta (since y already holds biases)
-                    values.ptr(),          // y vector (output)
-                    1                      // incy
-                );
+                    // Perform y = W^T * x + y (in-place)
+                    // dimensions:
+                    //   W: outputSize x inputSize
+                    //   x: inputSize
+                    //   y: outputSize
+                    cblas_sgemv(
+                        CblasRowMajor,           // Memory layout
+                        CblasNoTrans,            // Don't transpose W to keep outputSize x inputSize
+                        outputSize,              // rows of W
+                        inputSize,               // cols of W
+                        1.0f,                    // alpha
+                        weights.ptr(),           // W data
+                        inputSize,               // lda (leading dimension, number of cols)
+                        &previous.values[i, 0],  // x vector
+                        1,                       // incx
+                        1.0f,                    // beta (since y already holds biases)
+                        &values[i, 0],           // y vector (output)
+                        1                        // incy
+                    );
+                }
             }
 
             // Returns gradInput, weightGrad, biasGrad
@@ -114,16 +117,22 @@ namespace Ember {
                 const usize inputSize  = previous.size;
                 const usize outputSize = size;
 
-                Tensor gradInput(inputSize);
+                Tensor gradInput(values.dim(0), inputSize);
                 Tensor weightGrad(weights.dims());
-                Tensor biasGrad(size);
+                Tensor biasGrad(biases.dims());
+
+                gradInput.fill(0);
+                weightGrad.fill(0);
+                biasGrad.fill(0);
 
                 // Compute gradients
-                for (usize curr = 0; curr < outputSize; curr++) {
-                    biasGrad[curr] = gradOutput[curr];
-                    for (usize prev = 0; prev < inputSize; prev++) {
-                        gradInput[prev] += weights[curr, prev] * gradOutput[curr];
-                        weightGrad[curr, prev] += previous.values[prev] * gradOutput[curr];
+                for (usize i = 0; i < values.dim(0); i++) {
+                    for (usize curr = 0; curr < outputSize; curr++) {
+                        biasGrad[curr] += gradOutput[i, curr];
+                        for (usize prev = 0; prev < inputSize; prev++) {
+                            gradInput[i, prev] += weights[curr, prev] * gradOutput[i, curr];
+                            weightGrad[curr, prev] += previous.values[i, prev] * gradOutput[i, curr];
+                        }
                     }
                 }
 
