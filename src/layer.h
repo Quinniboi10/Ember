@@ -83,58 +83,86 @@ namespace Ember {
             // Forward pass
             // Fill values in the current layer
             void forward(const Layer& previous) override {
-                const usize inputSize  = previous.size;
+                const usize batch = values.dim(0);
+                const usize inputSize = previous.size;
                 const usize outputSize = size;
 
-                // Copy biases to output first
-                for (usize i = 0; i < values.dim(0); i++) {
+                for (usize i = 0; i < batch; ++i)
                     std::memcpy(&values[i, 0], biases.ptr(), outputSize * sizeof(float));
 
-                    // Perform y = W^T * x + y (in-place)
-                    // dimensions:
-                    //   W: outputSize x inputSize
-                    //   x: inputSize
-                    //   y: outputSize
-                    cblas_sgemv(
-                        CblasRowMajor,           // Memory layout
-                        CblasNoTrans,            // Don't transpose W to keep outputSize x inputSize
-                        outputSize,              // rows of W
-                        inputSize,               // cols of W
-                        1.0f,                    // alpha
-                        weights.ptr(),           // W data
-                        inputSize,               // lda (leading dimension, number of cols)
-                        &previous.values[i, 0],  // x vector
-                        1,                       // incx
-                        1.0f,                    // beta (since y already holds biases)
-                        &values[i, 0],           // y vector (output)
-                        1                        // incy
-                    );
-                }
+                // Batched matmul across all
+                cblas_sgemm(
+                    CblasRowMajor,
+                    CblasNoTrans,  // previous.values: batch x inputSize
+                    CblasTrans,    // weights: inputSize x outputSize
+                    static_cast<int>(batch),
+                    static_cast<int>(outputSize),
+                    static_cast<int>(inputSize),
+                    1.0f,
+                    previous.values.ptr(),
+                    static_cast<int>(inputSize),
+                    weights.ptr(),
+                    static_cast<int>(inputSize),
+                    1.0f,
+                    values.ptr(),
+                    static_cast<int>(outputSize)
+                );
             }
 
             // Returns gradInput, weightGrad, biasGrad
             std::tuple<Tensor, Tensor, Tensor> backward(const Layer& previous, const Tensor& gradOutput) const override {
-                const usize inputSize  = previous.size;
+                const usize batch = values.dim(0);
+                const usize inputSize = previous.size;
                 const usize outputSize = size;
 
-                Tensor gradInput(values.dim(0), inputSize);
-                Tensor weightGrad(weights.dims());
-                Tensor biasGrad(biases.dims());
+                Tensor gradInput(batch, inputSize);
+                Tensor weightGrad(outputSize, inputSize);
+                Tensor biasGrad(outputSize);
 
                 gradInput.fill(0);
                 weightGrad.fill(0);
                 biasGrad.fill(0);
 
-                // Compute gradients
-                for (usize i = 0; i < values.dim(0); i++) {
-                    for (usize curr = 0; curr < outputSize; curr++) {
-                        biasGrad[curr] += gradOutput[i, curr];
-                        for (usize prev = 0; prev < inputSize; prev++) {
-                            gradInput[i, prev] += weights[curr, prev] * gradOutput[i, curr];
-                            weightGrad[curr, prev] += previous.values[i, prev] * gradOutput[i, curr];
-                        }
-                    }
-                }
+                // gradInput = (batch x outputSize) * (outputSize x inputSize)
+                cblas_sgemm(
+                    CblasRowMajor,
+                    CblasNoTrans,   // A = gradOutput
+                    CblasNoTrans,   // B = weights
+                    static_cast<int>(batch),
+                    static_cast<int>(inputSize),
+                    static_cast<int>(outputSize),
+                    1.0f,
+                    gradOutput.ptr(),
+                    static_cast<int>(outputSize),
+                    weights.ptr(),
+                    static_cast<int>(inputSize),
+                    0.0f,
+                    gradInput.ptr(),
+                    static_cast<int>(inputSize)
+                );
+
+                // weightGrad = (outputSize x batch) * (batch x inputSize)
+                cblas_sgemm(
+                    CblasRowMajor,
+                    CblasTrans,     // A = gradOutput
+                    CblasNoTrans,   // B = previous.values
+                    static_cast<int>(outputSize),
+                    static_cast<int>(inputSize),
+                    static_cast<int>(batch),
+                    1.0f,
+                    gradOutput.ptr(),
+                    static_cast<int>(outputSize),
+                    previous.values.ptr(),
+                    static_cast<int>(inputSize),
+                    0.0f,
+                    weightGrad.ptr(),
+                    static_cast<int>(inputSize)
+                );
+
+                // Sum over batch of gradOutput
+                for (usize i = 0; i < batch; ++i)
+                    for (usize j = 0; j < outputSize; ++j)
+                        biasGrad[j] += gradOutput[i, j];
 
                 return { gradInput, weightGrad, biasGrad };
             }
