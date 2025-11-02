@@ -68,13 +68,13 @@ namespace Ember {
                 for (usize j = 0; j < data.target.dim(1); j++) {
                     if (net.output()[i, j] > net.output()[i, guess])
                         guess = j;
-                    if (data.target[i, j] > data.target[goal])
+                    if (data.target[i, j] > data.target[i, goal])
                         goal = j;
                 }
                 numCorrect += (guess == goal);
             }
 
-            return std::pair<float, float>{ loss / std::max<usize>(testSize, 1), numCorrect / static_cast<float>(testSize ? testSize : 1) };
+            return std::pair<float, float>{ loss, numCorrect / static_cast<float>(testSize ? testSize : 1) };
         };
 
         // Store the compute layers so RTTI isn't done on-the-fly
@@ -160,7 +160,7 @@ namespace Ember {
                 internal::cursor::up();
                 internal::cursor::up();
                 internal::cursor::begin();
-                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}", epoch, trainLoss, "Pending", "Pending", formatTime(stopwatch.elapsed()));
+                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}", epoch, trainLoss / currentBatch, "Pending", "Pending", formatTime(stopwatch.elapsed()));
                 std::cout << progressBar.report(currentBatch + 1, batchesPerEpoch, 63) << "      " << std::endl;
 
                 afterBatch:
@@ -187,7 +187,7 @@ namespace Ember {
                     goto afterFit;
             }
 
-            fmt::println("{:>5L}{:>14.5f}{:>13.5f}{:>16.2f}%{:>12}\n\n", epoch, trainLoss / batchesPerEpoch / batchSize, testLoss, testAccuracy * 100, formatTime(stopwatch.elapsed()));
+            fmt::println("{:>5L}{:>14.5f}{:>13.5f}{:>16.2f}%{:>12}\n\n", epoch, trainLoss / batchesPerEpoch, testLoss, testAccuracy * 100, formatTime(stopwatch.elapsed()));
         }
 
         afterFit:

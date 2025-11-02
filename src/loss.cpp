@@ -31,7 +31,7 @@ namespace Ember::loss {
             prob = std::min(prob, 1.0f);
             loss -= target.data[i] * std::log(prob);
         }
-        return loss / output.dim(1);
+        return loss / output.dim(0);
     }
 
     Tensor CrossEntropyLoss::backward(const Tensor& output, const Tensor& target) {
@@ -40,7 +40,7 @@ namespace Ember::loss {
         Tensor gradient;
         gradient.resize(output.dims());
 
-        const float scalar = 1.0f / output.dim(1);
+        const float scalar = 1.0f / output.dim(0);
         for (usize i = 0; i < output.size(); i++) {
             const float prob = std::max(output.data[i], 1e-10f);
             gradient.data[i] = -target.data[i] / prob * scalar;
