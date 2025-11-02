@@ -1,21 +1,21 @@
 #pragma once
 
 #include "types.h"
+#include "tensor.h"
 
 #include <vector>
 #include <future>
 #include <random>
 #include <array>
 
+
 namespace Ember {
     namespace internal {
         struct DataPoint {
-            std::vector<float> input;
-            std::vector<float> target;
+            Tensor input;
+            Tensor target;
 
             DataPoint() = default;
-            DataPoint(std::vector<float>&& input, std::vector<float>&& target)
-                : input(std::move(input)), target(std::move(target)) {}
         };
 
         struct DataLoader {
@@ -27,7 +27,7 @@ namespace Ember {
 
             usize currBatch;
             std::future<void> dataFuture;
-            std::array<std::vector<DataPoint>, 2> data;
+            std::array<DataPoint, 2> data;
 
             DataLoader(const u64 batchSize, const float trainSplit, const u64 threads) {
                 this->threads = threads;
@@ -37,25 +37,11 @@ namespace Ember {
                 this->numSamples = 0;
 
                 this->currBatch = 0;
-
-                data[0].reserve(batchSize);
-                data[1].reserve(batchSize);
             }
 
             // Loads batch into other buffer
             virtual void loadBatch(const usize batchIdx) = 0;
             virtual void loadTestSet() = 0;
-
-            bool hasNext() const {
-                return data[currBatch].size() > 0;
-            }
-
-            DataPoint next() {
-                assert(hasNext());
-                const DataPoint dataPoint = data[currBatch].back();
-                data[currBatch].pop_back();
-                return dataPoint;
-            }
 
             // Attempts to load data asynchronously if threads > 0
             void asyncPreloadBatch() {
@@ -67,12 +53,8 @@ namespace Ember {
                     dataFuture.get();
             }
 
-            const DataPoint& batchData(const usize idx) const {
-                return data[currBatch][idx];
-            }
-
-            usize testSetSize() const {
-                return data[currBatch].size();
+            const DataPoint& batchData() const {
+                return data[currBatch];
             }
 
             void swapBuffers() {
@@ -89,6 +71,10 @@ namespace Ember {
             std::vector<std::string> types;
             std::vector<u64> samplesPerType;
             std::vector<std::vector<std::string>> allImages;
+
+            std::vector<usize> trainSamplesPerType;
+            usize numTrainSamples;
+            usize numTestSamples;
 
             usize width;
             usize height;

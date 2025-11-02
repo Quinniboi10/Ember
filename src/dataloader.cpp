@@ -70,12 +70,25 @@ namespace Ember::dataloaders {
             }
         }
 
-        fmt::println("Using train to test ratio of {:.2f} with approximately {:.0f} train samples and {:.0f} test samples", trainSplit / (1 - trainSplit), numSamples * trainSplit, numSamples * (1 - trainSplit));
+        this->numTrainSamples = 0;
+        this->numTestSamples = 0;
+
+        trainSamplesPerType.resize(types.size());
+        for (usize typeIdx = 0; typeIdx < types.size(); typeIdx++) {
+            trainSamplesPerType[typeIdx] = samplesPerType[typeIdx] * trainSplit;
+            numTrainSamples += trainSamplesPerType[typeIdx];
+            numTestSamples += samplesPerType[typeIdx] - trainSamplesPerType[typeIdx];
+        }
+
+        fmt::println("Using train to test ratio of {:.2f} with {} train samples and {} test samples", trainSplit / (1 - trainSplit), numTrainSamples, numTestSamples);
     }
 
     void ImageDataLoader::loadBatch(const usize batchIdx) {
-        data[batchIdx].clear();
-        data[batchIdx].reserve(batchSize);
+        data[batchIdx].input.resize(batchSize, width * height);
+        data[batchIdx].target.resize(batchSize, types.size());
+
+        data[batchIdx].target.fill(0);
+        data[batchIdx].input.fill(0);
 
         if (types.empty())
             exitWithMsg(fmt::format("No types found in '{}'", dataDir), 1);
@@ -86,51 +99,46 @@ namespace Ember::dataloaders {
         for (usize i = 0; i < batchSize; i++) {
             std::mt19937 rng{ std::random_device{}() + omp_get_thread_num()};
 
-            auto& threadData = localData[omp_get_thread_num()];
-            threadData.reserve(batchSize / threads + 1);
-
             // Randomly pick a type
             std::uniform_int_distribution<usize> typeDist(0, types.size() - 1);
             const usize typeIdx = typeDist(rng);
 
             // Randomly pick an image
-            std::uniform_int_distribution<usize> imgDist(0, samplesPerType[typeIdx] * trainSplit - 1);
+            std::uniform_int_distribution<usize> imgDist(0, trainSamplesPerType[typeIdx] - 1);
             const usize imgIdx = imgDist(rng);
 
             std::vector<float> input = loadGreyscaleImage(allImages[typeIdx][imgIdx], width, height);
             std::vector<float> target(types.size(), 0);
             target[typeIdx] = 1;
 
-            threadData.emplace_back(std::move(input), std::move(target));
+            std::memcpy(&data[batchIdx].input[i, 0], input.data(), sizeof(float) * input.size());
+            std::memcpy(&data[batchIdx].target[i, 0], target.data(), sizeof(float) * target.size());
         }
-
-        for (auto& threadData : localData)
-            data[batchIdx].insert(data[batchIdx].end(),
-                                  std::make_move_iterator(threadData.begin()),
-                                  std::make_move_iterator(threadData.end()));
     }
 
     void ImageDataLoader::loadTestSet() {
-        data[currBatch].clear();
+        data[currBatch].input.resize(numTestSamples, width * height);
+        data[currBatch].target.resize(numTestSamples, types.size());
+
+        data[currBatch].input.fill(0.0f);
+        data[currBatch].target.fill(0.0f);
 
         if (types.empty())
             exitWithMsg(fmt::format("No types found in '{}'", dataDir), 1);
 
+        u64 idx = 0;
         for (usize typeIdx = 0; typeIdx < types.size(); typeIdx++) {
-            u64 currIdx = 0;
-            for (const auto& entry : std::filesystem::directory_iterator(types[typeIdx])) {
-                if (entry.is_regular_file()) {
-                    if (currIdx < samplesPerType[typeIdx] * trainSplit - 1) {
-                        currIdx++;
-                        continue;
-                    }
+            for (usize imgIdx = trainSamplesPerType[typeIdx]; imgIdx < allImages[typeIdx].size(); imgIdx++) {
+                assert(idx < numTestSamples);
 
-                    std::vector<float> input = loadGreyscaleImage(entry.path().string(), width, height);
-                    std::vector<float> target(types.size());
-                    target[typeIdx] = 1;
+                std::vector<float> input = loadGreyscaleImage(allImages[typeIdx][imgIdx], width, height);
+                std::vector<float> target(types.size(), 0.0f);
+                target[typeIdx] = 1.0f;
 
-                    data[currBatch].emplace_back(std::move(input), std::move(target));
-                }
+                std::memcpy(&data[currBatch].input[idx, 0], input.data(), sizeof(float) * input.size());
+                std::memcpy(&data[currBatch].target[idx, 0], target.data(), sizeof(float) * target.size());
+
+                idx++;
             }
         }
     }

@@ -6,6 +6,10 @@
 #include <memory>
 
 namespace Ember {
+    namespace internal {
+        struct DataLoader;
+    }
+
     enum class NetworkMode {
         EVAL,
         TRAIN

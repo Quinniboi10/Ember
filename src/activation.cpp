@@ -15,47 +15,59 @@ namespace Ember {
 
     namespace activations {
         void ReLU::forward(const Layer& previous) {
-            for (usize prev = 0; prev < previous.size; prev++)
-                values[prev] = internal::activations::ReLU(previous.values[prev]);
+            for (usize prev = 0; prev < previous.values.size(); prev++)
+                values.data[prev] = internal::activations::ReLU(previous.values.data[prev]);
         }
         Tensor ReLU::backward(const Layer& previous, const Tensor& gradOutput) const {
-            Tensor result(gradOutput.size());
+            Tensor result(gradOutput.dims());
             for (usize prev = 0; prev < gradOutput.size(); prev++)
-                result[prev] = gradOutput[prev] * internal::activations::derivatives::ReLU(previous.values[prev]);
+                result.data[prev] = gradOutput.data[prev] * internal::activations::derivatives::ReLU(previous.values.data[prev]);
 
             return result;
         }
 
 
         void Softmax::forward(const Layer& previous) {
-            values.resize(previous.size);
-            float maxIn = previous.values[0];
-            for (usize i = 1; i < previous.size; i++)
-                maxIn = std::max(maxIn, previous.values[i]);
+            const usize batchSize = previous.values.dim(0);
+            const usize numClasses = previous.size;
 
-            float sum = 0.0f;
-            for (usize i = 0; i < previous.size; i++) {
-                values[i] = std::exp(previous.values[i] - maxIn);
-                sum += values[i];
+            for (usize sample = 0; sample < batchSize; sample++) {
+                float maxIn = previous.values[sample, 0];
+                for (usize i = 1; i < numClasses; i++)
+                    maxIn = std::max(maxIn, previous.values[sample, i]);
+
+                float sum = 0.0f;
+                for (usize i = 0; i < numClasses; i++) {
+                    values[sample, i] = std::exp(previous.values[sample, i] - maxIn);
+                    sum += values[sample, i];
+                }
+
+                if (sum == 0.0f) {
+                    const float uniform = 1.0f / numClasses;
+                    for (usize i = 0; i < numClasses; i++)
+                        values[sample, i] = uniform;
+                }
+                else {
+                    const float sumScalar = 1.0f / sum;
+                    for (usize i = 0; i < numClasses; i++)
+                        values[sample, i] *= sumScalar;
+                }
             }
-
-            if (sum == 0.0f)
-                for (auto& v : values) v = 1.0f / previous.size;
-            else
-                for (auto& v : values) v /= sum;
         }
         Tensor Softmax::backward([[maybe_unused]] const Layer& previous, const Tensor& gradOutput) const {
-            const usize n = gradOutput.size();
-            Tensor result(n);
+            const usize batchSize = gradOutput.dim(0);
+            const usize numClasses = gradOutput.dim(1);
 
-            // Compute dot product of gradOutput and softmax output (values)
-            float dot = 0.0f;
-            for (usize i = 0; i < n; ++i)
-                dot += values[i] * gradOutput[i];
+            Tensor result(batchSize, numClasses);
 
-            // Compute gradient for each element
-            for (usize i = 0; i < n; ++i)
-                result[i] = values[i] * (gradOutput[i] - dot);
+            for (usize sample = 0; sample < batchSize; sample++) {
+                float dot = 0.0f;
+                for (usize i = 0; i < numClasses; i++)
+                    dot += values[sample, i] * gradOutput[sample, i];
+
+                for (usize i = 0; i < numClasses; i++)
+                    result[sample, i] = values[sample, i] * (gradOutput[sample, i] - dot);
+            }
 
             return result;
         }

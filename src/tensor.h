@@ -91,7 +91,7 @@ namespace Ember {
         }
 
         // Get the dimensionality
-        auto dims() { return dimensions; }
+        auto& dims() { return dimensions; }
         const auto& dims() const { return dimensions; }
         usize dim(const usize idx) const { return dimensions[idx]; }
 
@@ -106,12 +106,12 @@ namespace Ember {
             return data[i];
         }
 
-        float& operator()(const usize i, const usize j) {
+        float& operator[](const usize i, const usize j) {
             assert(dimensionality == 2);
             return data[i * strides[0] + j];
         }
 
-        const float& operator()(const usize i, const usize j) const {
+        const float& operator[](const usize i, const usize j) const {
             assert(dimensionality == 2);
             return data[i * strides[0] + j];
         }
@@ -122,7 +122,6 @@ namespace Ember {
             usize idx = 0;
             usize strideIdx = 0;
             ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
-            assert(idx < data.size());
             return data[idx];
         }
 
@@ -132,7 +131,6 @@ namespace Ember {
             usize idx = 0;
             usize strideIdx = 0;
             ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
-            assert(idx < data.size());
             return data[idx];
         }
     };
