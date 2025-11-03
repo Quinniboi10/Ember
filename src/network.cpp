@@ -6,13 +6,14 @@
 namespace Ember {
     void Network::forward(const Tensor& input, const usize threads) {
         assert(input.dimensionality == 2);
-        assert(input.dim(1) == layers[0]->size);
         openblas_set_num_threads(threads);
 
         for (auto& l : layers)
-            l->values.resize(input.dims()[0], l->size);
+            l->setBatchSize(input.dim(0));
 
-        layers[0]->values = input;
+        assert(input.dim(1) == layers[0]->values.size() / layers[0]->values.dim(0));
+
+        layers[0]->values.data = input.data;
 
         for (usize i = 1; i < layers.size(); i++)
             layers[i]->forward(*layers[i - 1]);

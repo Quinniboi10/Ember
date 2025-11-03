@@ -29,7 +29,7 @@ namespace Ember {
 
         void Softmax::forward(const Layer& previous) {
             const usize batchSize = previous.values.dim(0);
-            const usize numClasses = previous.size;
+            const usize numClasses = previous.values.dim(1);
 
             for (usize sample = 0; sample < batchSize; sample++) {
                 float maxIn = previous.values[sample, 0];

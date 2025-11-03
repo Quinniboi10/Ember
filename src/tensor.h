@@ -67,6 +67,26 @@ namespace Ember {
             calculateStrides();
         }
 
+        void setDimension(const usize dimIdx, const usize newSize) {
+            assert(dimIdx < dimensionality);
+            dimensions[dimIdx] = newSize;
+
+            u64 size = 1;
+            for (const usize d : dimensions)
+                size *= d;
+            data.resize(size);
+            calculateStrides();
+        }
+
+        // Add a leading 1 to the dimensions
+        void unsqueeze() {
+            std::vector<usize> newSizes(1 + dimensions.size());
+            newSizes[0] = 1;
+            std::memcpy(newSizes.data() + 1, dimensions.data(), dimensions.size() * sizeof(usize));
+
+            resize(newSizes);
+        }
+
         float* ptr() { return data.data(); }
         const float* ptr() const { return data.data(); }
 
@@ -95,6 +115,21 @@ namespace Ember {
         const auto& dims() const { return dimensions; }
         usize dim(const usize idx) const { return dimensions[idx]; }
 
+        // Leave the data but change the dimensions
+        // assumes the size doesn't change
+        void reshape(const std::vector<usize>& newDims) {
+            dimensionality = newDims.size();
+            dimensions = newDims;
+
+            #ifndef NDEBUG
+                u64 size = 1;
+                for (const usize d : dimensions)
+                    size *= d;
+                assert(data.size() == size);
+            #endif
+
+            calculateStrides();
+        }
 
         float& operator[](const usize i) {
             assert(dimensionality == 1);
