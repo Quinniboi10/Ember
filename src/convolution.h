@@ -27,6 +27,7 @@ namespace Ember::layers {
         std::vector<float> patchMatrix;
 
         mutable std::vector<float> colGrad;
+        mutable std::vector<float> localPatch;
 
         Convolution(const usize numKernels, const usize kernelSize, const usize stride = 1) : ComputeLayer(0), numKernels(numKernels), kernelSize(kernelSize), stride(stride) {
             outX = outY = 0;
@@ -57,28 +58,33 @@ namespace Ember::layers {
             patchMatrix.resize(rows * cols);
 
             colGrad.resize(rows * cols);
+            localPatch.resize(rows * cols);
         }
 
         // Forward pass
         void forward(const Layer& previous) override {
             const usize batchSize = values.dim(0);
-            const usize outputSize = outX * outY * numKernels;
 
             // Copy biases to output
-            for (usize i = 0; i < batchSize; i++)
-                for (usize j = 0; j < numKernels; j++)
-                    std::memcpy(&values[i, 0, 0, j], biases.ptr(), kernelSize * kernelSize * sizeof(float));
+            for (usize i = 0; i < batchSize; i++) {
+                for (usize ox = 0; ox < outX; ox++) {
+                    for (usize oy = 0; oy < outY; oy++) {
+                        for (usize j = 0; j < numKernels; j++) {
+                            values[i, ox, oy, j] = biases[j];
+                        }
+                    }
+                }
+            }
 
             for (usize i = 0; i < batchSize; i++) {
                 // Convert the image into columns
                 // The goal of this is to allow the use
                 // of OpenBLAS for the matrix math
                 usize row = 0;
-                for (usize oy = 0; oy < outY; oy++) {
-                    for (usize ox = 0; ox < outX; ox++) {
+                for (usize ox = 0; ox < outX; ox++) {
+                    for (usize oy = 0; oy < outY; oy++) {
                         float* rowPtr = &patchMatrix[row * cols];
                         usize idx = 0;
-
                         for (usize ky = 0; ky < kernelSize; ky++) {
                             for (usize kx = 0; kx < kernelSize; kx++) {
                                 const usize ix = ox * stride + kx;
@@ -125,8 +131,6 @@ namespace Ember::layers {
         }
 
         for (usize i = 0; i < batchSize; i++) {
-            std::vector<float> localPatch(rows * cols);
-
             usize row = 0;
             for (usize ox = 0; ox < outX; ox++) {
                 for (usize oy = 0; oy < outY; oy++) {

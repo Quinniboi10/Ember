@@ -8,8 +8,11 @@ int main() {
         Ember::layers::Convolution(8, 3),
         Ember::activations::ReLU(),
         Ember::layers::MaxPool(),
+        Ember::layers::Convolution(16, 3),
+        Ember::activations::ReLU(),
+        Ember::layers::MaxPool(),
         Ember::layers::Flatten(),
-        Ember::layers::Linear(128),
+        Ember::layers::Linear(512),
         Ember::activations::ReLU(),
         Ember::layers::Linear(64),
         Ember::activations::ReLU(),
@@ -17,7 +20,7 @@ int main() {
         Ember::activations::Softmax()
      );
 
-    Ember::dataloaders::ImageDataLoader dataloader("../datasets/MNIST/", 32, 0.9, 6, 28, 28);
+    Ember::dataloaders::ImageDataLoader dataloader("../datasets/FashionMNIST/", 32, 0.9, 6, 28, 28);
     Ember::optimizers::Adam optimizer(net);
 
     Ember::Learner learner(net, dataloader, optimizer, Ember::loss::CrossEntropyLoss());
