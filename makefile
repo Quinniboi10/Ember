@@ -64,8 +64,8 @@ debug: all
 
 # Debug build
 .PHONY: sanitize
-debug: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
-debug: all
+sanitize: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
+sanitize: all
 
 # Debug build
 .PHONY: profile

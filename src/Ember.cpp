@@ -1,16 +1,26 @@
 #include "learner.h"
-#include "save.h"
+#include "maxpool.h"
+#include "convolution.h"
 
 int main() {
     Ember::Network net(
-        Ember::layers::Input(28 * 28),
+        Ember::layers::Input(28, 28),
+        Ember::layers::Convolution(8, 3),
+        Ember::activations::ReLU(),
+        Ember::layers::MaxPool(),
+        Ember::layers::Convolution(16, 3),
+        Ember::activations::ReLU(),
+        Ember::layers::MaxPool(),
+        Ember::layers::Flatten(),
         Ember::layers::Linear(512),
+        Ember::activations::ReLU(),
+        Ember::layers::Linear(64),
         Ember::activations::ReLU(),
         Ember::layers::Linear(10),
         Ember::activations::Softmax()
      );
 
-    Ember::dataloaders::ImageDataLoader dataloader("../datasets/MNIST/", 128, 0.9, 6, 28, 28);
+    Ember::dataloaders::ImageDataLoader dataloader("../datasets/FashionMNIST/", 32, 0.9, 6, 28, 28);
     Ember::optimizers::Adam optimizer(net);
 
     Ember::Learner learner(net, dataloader, optimizer, Ember::loss::CrossEntropyLoss());
@@ -18,10 +28,10 @@ int main() {
     std::cout << net << std::endl;
 
     learner.addCallbacks(
-        Ember::callbacks::DropLROnPlateau(1, 0.3),
-        Ember::callbacks::StopWhenNoProgress(3),
+        Ember::callbacks::DropLROnPlateau(3, 0.3),
+        Ember::callbacks::StopWhenNoProgress(5),
         Ember::callbacks::AutosaveBest("../net.bin")
     );
 
-    learner.learn(0.01, 20, 2);
+    learner.learn(0.001, 20, 1);
 }

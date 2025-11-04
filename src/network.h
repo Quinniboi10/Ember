@@ -22,7 +22,7 @@ namespace Ember {
         std::vector<std::unique_ptr<internal::Layer>> layers;
 
         template <LayerLike... Args>
-        void _init(const bool useXavierInit, Args&&... args) {
+        void init(const bool useXavierInit, Args&&... args) {
             (layers.emplace_back(std::make_unique<std::decay_t<Args>>(std::forward<Args>(args))), ...);
 
             std::random_device rd;
@@ -30,8 +30,8 @@ namespace Ember {
 
             for (usize l = 1; l < layers.size(); l++) {
                 // Try to set the size of an activation layer
-                if (auto* activationLayer = dynamic_cast<internal::ActivationLayer*>(layers[l].get())) {
-                    activationLayer->setSize(layers[l - 1]->size);
+                if (auto* activationLayer = dynamic_cast<internal::NonComputeLayer*>(layers[l].get())) {
+                    activationLayer->init(layers[l - 1]->values);
                     continue;
                 }
                 auto* layer = dynamic_cast<internal::ComputeLayer*>(layers[l].get());
@@ -40,10 +40,10 @@ namespace Ember {
                 if (layer == nullptr)
                     continue;
 
-                layer->init(layers[l - 1]->size);
+                layer->init(layers[l - 1]->values);
 
-                const usize fanIn = layers[l - 1]->size;
-                const usize fanOut = layer->size;
+                const usize fanIn = layers[l - 1]->values.size();
+                const usize fanOut = layer->values.size();
 
                 if (useXavierInit) {
                     const float limit = std::sqrt(6.0f / (fanIn + fanOut));
@@ -70,7 +70,7 @@ namespace Ember {
 
         template <LayerLike... Args>
         explicit Network(Args&&... args) {
-            _init(true, std::forward<Args>(args)...);
+            init(true, std::forward<Args>(args)...);
         }
 
         void forward(const Tensor& input, const usize threads);

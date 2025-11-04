@@ -8,7 +8,7 @@ namespace Ember {
     }
 
     namespace activations {
-        struct ReLU : internal::ActivationLayer {
+        struct ReLU : internal::NonComputeLayer {
             void forward(const Layer& previous) override;
 
             Tensor backward(const Layer& previous, const Tensor& gradOutput) const override;
@@ -18,11 +18,11 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("ReLU - applied to {} features", size);
+                return fmt::format("ReLU - {}", dims());
             }
         };
 
-        struct Softmax : internal::ActivationLayer {
+        struct Softmax : internal::NonComputeLayer {
             void forward(const Layer& previous) override;
 
             Tensor backward(const Layer& previous, const Tensor& gradOutput) const override;
@@ -32,7 +32,7 @@ namespace Ember {
             }
 
             std::string str() const override {
-                return fmt::format("Softmax - applied to {} features", size);
+                return fmt::format("Softmax - {}", dims());
             }
         };
     }

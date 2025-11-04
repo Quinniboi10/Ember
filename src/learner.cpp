@@ -12,7 +12,7 @@ namespace Ember {
         for (usize idx = net.layers.size() - 1; idx > 0; idx--) {
             auto* layer = net.layers[idx].get();
 
-            if (const auto* actLayer = dynamic_cast<internal::ActivationLayer*>(layer)) {
+            if (const auto* actLayer = dynamic_cast<internal::NonComputeLayer*>(layer)) {
                 error = actLayer->backward(*net.layers[idx - 1], error);
             }
             else if (const auto* compLayer = dynamic_cast<internal::ComputeLayer*>(layer)) {
@@ -28,7 +28,7 @@ namespace Ember {
                             biasGrad.ptr(), 1,
                             optimizer.biasGradients[idx].ptr(), 1);
 
-                error = gradInput;
+                error = std::move(gradInput);
             }
         }
     }
