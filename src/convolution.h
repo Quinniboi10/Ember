@@ -24,6 +24,8 @@ namespace Ember::layers {
 
         usize rows;
         usize cols;
+        usize inputChannels;
+
         std::vector<float> patchMatrix;
 
         mutable std::vector<float> colGrad;
@@ -32,22 +34,21 @@ namespace Ember::layers {
         Convolution(const usize numKernels, const usize kernelSize, const usize stride = 1) : ComputeLayer(0), numKernels(numKernels), kernelSize(kernelSize), stride(stride) {
             outX = outY = 0;
             x = y = 0;
-            rows = 0;
+            rows = cols = 0;
 
-            weights.resize(numKernels, kernelSize * kernelSize);
             biases.resize(numKernels);
-            cols = kernelSize * kernelSize;
         }
 
         // Given the values of the previous
         // layer we can interpret what
         // input this layer will receive
         void init(const Tensor& previous) override {
-            // Batch size, x, y
-            assert(previous.dimensionality == 3);
+            // Batch size, x, y, channels
+            assert(previous.dimensionality == 4);
 
             x = previous.dim(1);
             y = previous.dim(2);
+            inputChannels = previous.dim(3);
 
             outX = (x - kernelSize) / stride + 1;
             outY = (y - kernelSize) / stride + 1;
@@ -55,6 +56,10 @@ namespace Ember::layers {
             values.resize(static_cast<usize>(1), outX, outY, numKernels);
 
             rows = outX * outY;
+            cols = kernelSize * kernelSize * inputChannels;
+
+            weights.resize(numKernels, cols);
+
             patchMatrix.resize(rows * cols);
 
             colGrad.resize(rows * cols);
@@ -85,11 +90,13 @@ namespace Ember::layers {
                     for (usize oy = 0; oy < outY; oy++) {
                         float* rowPtr = &patchMatrix[row * cols];
                         usize idx = 0;
-                        for (usize ky = 0; ky < kernelSize; ky++) {
-                            for (usize kx = 0; kx < kernelSize; kx++) {
-                                const usize ix = ox * stride + kx;
-                                const usize iy = oy * stride + ky;
-                                rowPtr[idx++] = previous.values[i, ix, iy];
+                        for (usize ch = 0; ch < inputChannels; ch++) {
+                            for (usize ky = 0; ky < kernelSize; ky++) {
+                                for (usize kx = 0; kx < kernelSize; kx++) {
+                                    const usize ix = ox * stride + kx;
+                                    const usize iy = oy * stride + ky;
+                                    rowPtr[idx++] = previous.values[i, ix, iy];
+                                }
                             }
                         }
                         row++;
@@ -137,11 +144,13 @@ namespace Ember::layers {
                     float* rowPtr = &localPatch[row * cols];
                     usize idx = 0;
 
-                    for (usize ky = 0; ky < kernelSize; ky++) {
-                        for (usize kx = 0; kx < kernelSize; kx++) {
-                            const usize ix = ox * stride + kx;
-                            const usize iy = oy * stride + ky;
-                            rowPtr[idx++] = previous.values[i, ix, iy];
+                    for (usize ch = 0; ch < inputChannels; ch++) {
+                        for (usize ky = 0; ky < kernelSize; ky++) {
+                            for (usize kx = 0; kx < kernelSize; kx++) {
+                                const usize ix = ox * stride + kx;
+                                const usize iy = oy * stride + ky;
+                                rowPtr[idx++] = previous.values[i, ix, iy];
+                            }
                         }
                     }
                     row++;
@@ -180,11 +189,13 @@ namespace Ember::layers {
                     const float* rowPtr = &colGrad[row * cols];
                     usize idx = 0;
 
-                    for (usize ky = 0; ky < kernelSize; ky++) {
-                        for (usize kx = 0; kx < kernelSize; kx++) {
-                            const usize ix = ox * stride + kx;
-                            const usize iy = oy * stride + ky;
-                            gradInput[i, ix, iy] += rowPtr[idx++];
+                    for (usize ch = 0; ch < inputChannels; ch++) {
+                        for (usize ky = 0; ky < kernelSize; ky++) {
+                            for (usize kx = 0; kx < kernelSize; kx++) {
+                                const usize ix = ox * stride + kx;
+                                const usize iy = oy * stride + ky;
+                                gradInput[i, ix, iy, ch] += rowPtr[idx++];
+                            }
                         }
                     }
                 }
@@ -199,7 +210,7 @@ namespace Ember::layers {
         }
 
         std::string str() const override {
-            return fmt::format("Convolution - {} {}x{} kernels to {}x{}x{} output features", numKernels, kernelSize, kernelSize, outX, outY, numKernels);
+            return fmt::format("Convolution - {} {}x{} kernels and {} input channels to {}x{}x{} output features", numKernels, kernelSize, kernelSize, inputChannels, outX, outY, numKernels);
         }
         u64 numParams() const override { return weights.size() + biases.size(); }
     };
