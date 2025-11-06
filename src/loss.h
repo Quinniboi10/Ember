@@ -19,6 +19,22 @@ namespace Ember {
             Tensor backward(const Tensor& output, const Tensor& target) override;
         };
 
+        // Apply sigmoid to the input and target before
+        // calculating the loss
+        // Modeled by the below function, paste into Desmos to see it
+        // f\left(x\right)=\left(\frac{k}{1+e^{\left(a+bx\right)}}\right)
+        struct SigmoidMSE : internal::LossFunction {
+            float a = 2.3;
+            float b = -0.34;
+            float k = 11;
+
+            SigmoidMSE() = default;
+            SigmoidMSE(const float a, const float b, const float k) : a(a), b(b), k(k) {}
+
+            float forward(const Tensor& output, const Tensor& target) override;
+            Tensor backward(const Tensor& output, const Tensor& target) override;
+        };
+
         struct CrossEntropyLoss : internal::LossFunction {
             float forward(const Tensor& output, const Tensor& target) override;
             Tensor backward(const Tensor& output, const Tensor& target) override;

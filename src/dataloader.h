@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "tensor.h"
+#include "./chess/board.h"
 
 #include <vector>
 #include <future>
@@ -21,22 +22,17 @@ namespace Ember {
         struct DataLoader {
             u64 threads;
             u64 batchSize;
-            float trainSplit;
 
-            u64 numSamples;
+            u64 numSamples = 0;
 
-            usize currBatch;
+            usize currBatch = 0;
+
             std::future<void> dataFuture;
             std::array<DataPoint, 2> data;
 
-            DataLoader(const u64 batchSize, const float trainSplit, const u64 threads) {
+            DataLoader(const u64 batchSize, const u64 threads) {
                 this->threads = threads;
                 this->batchSize = batchSize;
-                this->trainSplit = trainSplit;
-
-                this->numSamples = 0;
-
-                this->currBatch = 0;
             }
 
             // Loads batch into other buffer
@@ -57,9 +53,13 @@ namespace Ember {
                 return data[currBatch];
             }
 
-            void swapBuffers() {
+            virtual void swapBuffers() {
                 currBatch ^= 1;
             }
+
+            // Returns if a given output from the network should be
+            //  considered true, and count toward the accuracy
+            virtual bool countCorrect(const Tensor& output, const Tensor& target) = 0;
 
             virtual ~DataLoader() = default;
         };
@@ -72,17 +72,43 @@ namespace Ember {
             std::vector<u64> samplesPerType;
             std::vector<std::vector<std::string>> allImages;
 
-            std::vector<usize> trainSamplesPerType;
-            usize numTrainSamples;
-            usize numTestSamples;
+            std::vector<u64> trainSamplesPerType;
+            u64 numTrainSamples;
+            u64 numTestSamples;
+
+            float trainSplit;
 
             usize width;
             usize height;
 
-            ImageDataLoader(const std::string& dataDir, const u64 batchSize, const float trainSplit, const u64 threads = 0, const usize width = 0, const usize height = 0);
+            ImageDataLoader(const std::string& dataDir, const u64 batchSize, const u64 threads, const float trainSplit, const usize width = 0, const usize height = 0);
 
             void loadBatch(const usize batchIdx) override;
             void loadTestSet() override;
+
+            bool countCorrect(const Tensor& output, const Tensor& target) override;
         };
+
+        // Defined in ./chess/*
+        namespace chess {
+            struct BulletTextDataLoader : internal::DataLoader {
+                std::string filePath;
+
+                u64 batchNumber = 0;
+
+                BulletTextDataLoader(const std::string& filePath, const u64 batchSize, const u64 threads = 0);
+
+                void loadBatch(const usize batchIdx) override;
+                void loadTestSet() override;
+
+                bool countCorrect(const Tensor& output, const Tensor& target) override;
+
+
+                void swapBuffers() override {
+                    batchNumber++;
+                    currBatch ^= 1;
+                }
+            };
+        }
     }
 }

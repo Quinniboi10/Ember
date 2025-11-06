@@ -21,6 +21,40 @@ namespace Ember::loss {
         return gradient;
     }
 
+
+    float SigmoidMSE::forward(const Tensor& output, const Tensor& target) {
+        assert(output.size() == target.size());
+
+        float loss = 0;
+        for (usize i = 0; i < output.size(); i++) {
+            const float imprecision = std::abs(output.data[i] - target.data[i]);
+            const float sigmoid = 1 / (1 + std::exp(-imprecision));
+            loss += std::pow(sigmoid, 2);
+        }
+        return loss / output.dim(1);
+    }
+
+    Tensor SigmoidMSE::backward(const Tensor& output, const Tensor& target) {
+        assert(output.size() == target.size());
+
+        Tensor gradient;
+        gradient.resize(output.dims());
+
+        const float scalar = 2.0f / output.dim(1);
+
+        for (usize i = 0; i < output.size(); i++) {
+            const float diff = output.data[i] - target.data[i];
+            const float sign = (diff >= 0.0f) ? 1.0f : -1.0f;
+            const float sigmoid = 1.0f / (1.0f + std::exp(-std::abs(diff)));
+            const float grad = scalar * sigmoid * sigmoid * (1.0f - sigmoid) * sign * 2.0f;
+
+            gradient.data[i] = grad;
+        }
+
+        return gradient;
+    }
+
+
     float CrossEntropyLoss::forward(const Tensor& output, const Tensor& target) {
         assert(output.size() == target.size());
 

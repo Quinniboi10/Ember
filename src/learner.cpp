@@ -53,7 +53,6 @@ namespace Ember {
 
         // Returns { test loss, test accuracy }
         const auto getTestLossAcc = [&]() {
-            usize numCorrect = 0;
             dataLoader.loadTestSet();
             const internal::DataPoint& data = dataLoader.batchData();
             const usize testSize = data.input.dim(0);
@@ -62,17 +61,7 @@ namespace Ember {
 
             const float loss = lossFunc->forward(net.output(), data.target);
 
-            for (usize i = 0; i < data.target.dim(0); i++) {
-                usize guess = 0;
-                usize goal = 0;
-                for (usize j = 0; j < data.target.dim(1); j++) {
-                    if (net.output()[i, j] > net.output()[i, guess])
-                        guess = j;
-                    if (data.target[i, j] > data.target[i, goal])
-                        goal = j;
-                }
-                numCorrect += (guess == goal);
-            }
+            const u64 numCorrect = dataLoader.countCorrect(net.output(), data.target);
 
             return std::pair<float, float>{ loss, numCorrect / static_cast<float>(testSize ? testSize : 1) };
         };
@@ -108,6 +97,8 @@ namespace Ember {
 
         // Preload first batch
         dataLoader.asyncPreloadBatch();
+
+        fmt::println("LOADED FIRST BATCH");
 
         stopwatch.reset();
 
