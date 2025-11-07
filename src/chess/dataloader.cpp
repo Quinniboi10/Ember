@@ -21,7 +21,7 @@ namespace Ember::dataloaders::chess {
 
 
         std::string l;
-        std::ifstream file(filePath);
+        file = std::ifstream(filePath);
         while (std::getline(file, l))
             numSamples++;
 
@@ -29,8 +29,6 @@ namespace Ember::dataloaders::chess {
     }
 
     void BulletTextDataLoader::loadBatch(const usize batchIdx) {
-        std::ifstream file(filePath);
-
         data[batchIdx].input.resize(batchSize, static_cast<usize>(2 * 6 * 64));
         data[batchIdx].target.resize(batchSize, static_cast<usize>(1));
 
@@ -41,20 +39,15 @@ namespace Ember::dataloaders::chess {
 
         std::string l;
         std::vector<std::string> lines;
-        u64 linesRead;
-
-
-        linesRead = 0;
-        while (std::getline(file, l) && linesRead < batchNumber * batchSize)
-            linesRead++;
+        u64 linesRead = 0;
 
         // Load lines into a buffer
-        linesRead = 0;
         while (linesRead < batchSize) {
             if (!std::getline(file, l)) {
-                batchNumber = 0;
                 file = std::ifstream(filePath);
+                continue;
             }
+
             // Discard null chars because windows uses encoding that
             // places a \0 after every character
             std::erase_if(l, [](const char c) { return c == '\0'; });
@@ -111,10 +104,63 @@ namespace Ember::dataloaders::chess {
     }
 
     void BulletTextDataLoader::loadTestSet() {
-        const auto prevBatch = batchNumber;
-        batchNumber = 0;
-        loadBatch(currBatch);
-        batchNumber = prevBatch;
+        // Local file object, always reads the
+        // first batchSize samples for
+        // more consistent results
+        std::ifstream file(filePath);
+
+        data[currBatch].input.resize(batchSize, static_cast<usize>(2 * 6 * 64));
+        data[currBatch].target.resize(batchSize, static_cast<usize>(1));
+
+        data[currBatch].target.fill(0);
+        data[currBatch].input.fill(0);
+
+        std::vector<std::vector<internal::DataPoint>> localData(threads);
+
+        std::string l;
+        std::vector<std::string> lines;
+        u64 linesRead = 0;
+
+        // Load lines into a buffer
+        while (linesRead < batchSize) {
+            if (!std::getline(file, l))
+                exitWithMsg(fmt::format("Failed to load test batch. Is the data corrupted? Are there at least {} data points?", batchSize), 1);
+            // Discard null chars because windows uses encoding that
+            // places a \0 after every character
+            std::erase_if(l, [](const char c) { return c == '\0'; });
+
+            if (std::ranges::all_of(l.begin(), l.end(), [](const char c) { return std::isspace(c); }))
+                continue;
+
+            lines.emplace_back(l);
+            linesRead++;
+        }
+
+        #pragma omp parallel for num_threads(std::max<usize>(threads, 1))
+        for (usize i = 0; i < batchSize; i++) {
+            std::string& line = lines[i];
+
+            // Strip UTF-16 BOM if present
+            if (line.size() >= 2 && static_cast<unsigned char>(line[0]) == 0xFF && static_cast<unsigned char>(line[1]) == 0xFE)
+                line = line.substr(2);
+
+            const auto tokens = split(line, '|');
+
+            if (tokens.size() != 3)
+                exitWithMsg(fmt::format("Expected 3 tokens, got {}. Failed to parse line: {}", tokens.size(), line), 1);
+            assert(tokens.size() == 3);
+
+            const std::string& fen = tokens[0];
+            const float eval = std::stof(tokens[1]);
+
+            Ember::chess::Board board{};
+            board.loadFromFEN(fen);
+
+            std::vector<float> input = board.asInputLayer();
+
+            std::memcpy(&data[currBatch].input[i, 0], input.data(), sizeof(float) * input.size());
+            data[currBatch].target[i, 0] = eval * evalScale;
+        }
     }
 
     u64 BulletTextDataLoader::countCorrect(const Tensor& output, const Tensor& target) {

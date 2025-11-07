@@ -2,8 +2,8 @@
 
 #include "types.h"
 #include "tensor.h"
-#include "./chess/board.h"
 
+#include <fstream>
 #include <vector>
 #include <future>
 #include <random>
@@ -96,6 +96,8 @@ namespace Ember {
 
                 u64 batchNumber = 0;
                 usize evalScale = 0;
+
+                std::ifstream file;
 
                 BulletTextDataLoader(const std::string& filePath, const u64 batchSize, const usize evalScale, const u64 threads = 0);
 

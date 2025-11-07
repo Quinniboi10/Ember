@@ -130,5 +130,7 @@ namespace Ember::chess {
         std::vector<float> asInputLayer() const;
 
         void move(Move m);
+
+        friend std::ostream& operator<<(std::ostream& os, const Board& board);
     };
 }

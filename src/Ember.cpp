@@ -12,7 +12,7 @@ int main() {
 
     constexpr Ember::usize evalScale = 400;
 
-    Ember::dataloaders::chess::BulletTextDataLoader dataloader("../datasets/preludeData.txt", 1024 * 16, evalScale, 6);
+    Ember::dataloaders::chess::BulletTextDataLoader dataloader("../datasets/preludeData.txt", 1024 * 16, evalScale, 1);
     Ember::optimizers::Adam optimizer(net);
 
     Ember::Learner learner(net, dataloader, optimizer, Ember::loss::SigmoidMSE(evalScale));
@@ -25,5 +25,5 @@ int main() {
         Ember::callbacks::AutosaveBest("../net.bin")
     );
 
-    learner.learn(0.005, 40, 8);
+    learner.learn(0.005, 40, 1);
 }

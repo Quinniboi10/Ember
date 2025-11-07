@@ -28,10 +28,9 @@ namespace Ember::loss {
         float loss = 0;
         for (usize i = 0; i < output.size(); i++) {
             const float imprecision = std::abs(output.data[i] - target.data[i]);
-            const float sigmoid = k / (1 + std::exp(a + b * imprecision));
-            loss += std::pow(sigmoid, 2);
+            loss += std::pow(sigmoid(imprecision), 2);
         }
-        return loss / output.size();
+        return loss / output.size() - offset;
     }
 
     Tensor SigmoidMSE::backward(const Tensor& output, const Tensor& target) {

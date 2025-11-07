@@ -149,7 +149,7 @@ namespace Ember {
                 internal::cursor::up();
                 internal::cursor::up();
                 internal::cursor::begin();
-                fmt::println("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}", epoch, trainLoss / currentBatch, "Pending", "Pending", formatTime(stopwatch.elapsed()));
+                fmt::print("{:>5L}{:>14.5f}{:>13}{:>17}{:>12}\n", epoch, trainLoss / currentBatch, "Pending", "Pending", formatTime(stopwatch.elapsed()));
                 std::cout << progressBar.report(currentBatch + 1, batchesPerEpoch, 63) << "      " << std::endl;
 
                 afterBatch:

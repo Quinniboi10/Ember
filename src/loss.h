@@ -28,9 +28,12 @@ namespace Ember {
             float b = -0.17;
             float k = 3;
 
-            SigmoidMSE() = default;
-            SigmoidMSE(const float a, const float b, const float k) : a(a), b(b), k(k) {}
+            float offset;
+
+            SigmoidMSE(const float a, const float b, const float k) : a(a), b(b), k(k) { offset = -sigmoid(0); }
             explicit SigmoidMSE(const float horizontalStretch) { b /= horizontalStretch; }
+
+            float sigmoid(const float x) const { return k / (1 + std::exp(a + b * x)); }
 
             float forward(const Tensor& output, const Tensor& target) override;
             Tensor backward(const Tensor& output, const Tensor& target) override;

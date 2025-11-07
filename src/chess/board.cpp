@@ -394,4 +394,22 @@ namespace Ember::chess {
 
         fullMoveClock += stm == WHITE;
     }
+
+    std::ostream& operator<<(std::ostream& os, const Board& board) {
+        os << "\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n";
+
+        usize line = 1;
+        for (i32 rank = (board.stm == WHITE) * 7; (board.stm == WHITE) ? rank >= 0 : rank < 8; (board.stm == WHITE) ? rank-- : rank++) {
+            os << "\u2502 ";
+            for (usize file = 0; file < 8; file++) {
+                const auto sq    = static_cast<Square>(rank * 8 + file);
+                const auto color = ((1ULL << sq) & board.pieces(WHITE)) ? "\033[33m" : "\033[34m";
+                os << color << board.getPieceAt(sq) << "\033[0m ";
+            }
+            os << "\u2502 " << rank + 1 << "\n";
+        }
+        os << "\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n";
+        os << "  a b c d e f g h\n";
+        return os;
+    }
 }
