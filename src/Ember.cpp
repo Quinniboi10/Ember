@@ -5,23 +5,25 @@
 int main() {
     Ember::Network net(
         Ember::layers::Input(2 * 6 * 64),
-        Ember::layers::Linear(1024),
+        Ember::layers::Linear(128),
         Ember::activations::ReLU(),
         Ember::layers::Linear(1)
      );
 
-    Ember::dataloaders::chess::BulletTextDataLoader dataloader("../datasets/preludeData.txt", 64, 6);
+    constexpr Ember::usize evalScale = 400;
+
+    Ember::dataloaders::chess::BulletTextDataLoader dataloader("../datasets/preludeData.txt", 1024 * 16, evalScale, 6);
     Ember::optimizers::Adam optimizer(net);
 
-    Ember::Learner learner(net, dataloader, optimizer, Ember::loss::SigmoidMSE());
+    Ember::Learner learner(net, dataloader, optimizer, Ember::loss::SigmoidMSE(evalScale));
 
     std::cout << net << std::endl;
 
     learner.addCallbacks(
-        Ember::callbacks::DropLROnPlateau(3, 0.3),
-        Ember::callbacks::StopWhenNoProgress(5),
+        Ember::callbacks::DropLROnPlateau(3, 0.3, Ember::Metric::TRAIN_LOSS),
+        Ember::callbacks::StopWhenNoProgress(5, Ember::Metric::TRAIN_LOSS),
         Ember::callbacks::AutosaveBest("../net.bin")
     );
 
-    learner.learn(0.001, 20, 1);
+    learner.learn(0.005, 40, 8);
 }

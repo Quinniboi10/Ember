@@ -98,8 +98,6 @@ namespace Ember {
         // Preload first batch
         dataLoader.asyncPreloadBatch();
 
-        fmt::println("LOADED FIRST BATCH");
-
         stopwatch.reset();
 
         // Main loop

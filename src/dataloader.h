@@ -57,9 +57,9 @@ namespace Ember {
                 currBatch ^= 1;
             }
 
-            // Returns if a given output from the network should be
-            //  considered true, and count toward the accuracy
-            virtual bool countCorrect(const Tensor& output, const Tensor& target) = 0;
+            // Returns the number of "correct" outputs
+            // from the network
+            virtual u64 countCorrect(const Tensor& output, const Tensor& target) = 0;
 
             virtual ~DataLoader() = default;
         };
@@ -86,7 +86,7 @@ namespace Ember {
             void loadBatch(const usize batchIdx) override;
             void loadTestSet() override;
 
-            bool countCorrect(const Tensor& output, const Tensor& target) override;
+            u64 countCorrect(const Tensor& output, const Tensor& target) override;
         };
 
         // Defined in ./chess/*
@@ -95,13 +95,14 @@ namespace Ember {
                 std::string filePath;
 
                 u64 batchNumber = 0;
+                usize evalScale = 0;
 
-                BulletTextDataLoader(const std::string& filePath, const u64 batchSize, const u64 threads = 0);
+                BulletTextDataLoader(const std::string& filePath, const u64 batchSize, const usize evalScale, const u64 threads = 0);
 
                 void loadBatch(const usize batchIdx) override;
                 void loadTestSet() override;
 
-                bool countCorrect(const Tensor& output, const Tensor& target) override;
+                u64 countCorrect(const Tensor& output, const Tensor& target) override;
 
 
                 void swapBuffers() override {

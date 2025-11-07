@@ -138,7 +138,7 @@ namespace Ember::dataloaders {
         }
     }
 
-    bool ImageDataLoader::countCorrect(const Tensor& output, const Tensor& target) {
+    u64 ImageDataLoader::countCorrect(const Tensor& output, const Tensor& target) {
         u64 numCorrect = 0;
 
         for (usize i = 0; i < target.dim(0); i++) {
