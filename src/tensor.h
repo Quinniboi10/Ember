@@ -4,10 +4,13 @@
 
 #include "../external/fmt/format.h"
 
+#include <cblas.h>
 #include <vector>
 #include <array>
 
 namespace Ember {
+    #define sgemm cblas_sgemm;
+
     namespace internal {
         template <typename T>
         concept UsizeLike = std::is_same_v<std::decay_t<T>, usize>;
@@ -167,6 +170,67 @@ namespace Ember {
             usize strideIdx = 0;
             ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
             return data[idx];
+        }
+
+
+        // Matrix operations
+
+        // Compute a * b then add to the current tensor
+        void madd(const Tensor& a, const Tensor& b) { madd(a, b, false, false); }
+        // Compute a * b then add to the current tensor
+        void madd(const Tensor& a, const Tensor& b, const bool transposeA, const bool transposeB) {
+            assert(dimensionality == 2);
+            assert(a.dimensionality == 2);
+            assert(b.dimensionality == 2);
+
+            // Logical dimensions for op(A) and op(B)
+            const usize aRows = transposeA ? a.dim(1) : a.dim(0);
+            const usize aCols = transposeA ? a.dim(0) : a.dim(1);
+            const usize bRows = transposeB ? b.dim(1) : b.dim(0);
+            const usize bCols = transposeB ? b.dim(0) : b.dim(1);
+
+            // Ensure dimensions are compatible for C = op(A) * op(B) + C
+            assert(aCols == bRows);
+            assert(this->dim(0) == aRows);
+            assert(this->dim(1) == bCols);
+
+            // Matrix multiplication parameters
+            const int M = static_cast<int>(this->dim(0)); // rows of C / op(A)
+            const int N = static_cast<int>(this->dim(1)); // cols of C / op(B)
+            const int K = static_cast<int>(aCols);            // inner dimension
+
+            const auto transA = transposeA ? CblasTrans : CblasNoTrans;
+            const auto transB = transposeB ? CblasTrans : CblasNoTrans;
+
+            // Leading dimensions assuming row major
+            const int lda = static_cast<int>(a.dim(1));
+            const int ldb = static_cast<int>(b.dim(1));
+            const int ldc = static_cast<int>(this->dim(1));
+
+            // Perform C = op(A) * op(B) + C
+            cblas_sgemm(
+                CblasRowMajor,
+                transA, transB,
+                M, N, K,
+                1.0f,
+                a.ptr(), lda,
+                b.ptr(), ldb,
+                1.0f,
+                this->ptr(), ldc
+            );
+        }
+        // Compute a * b then add to the current tensor
+        void madd(const CBLAS_TRANSPOSE transA, const CBLAS_TRANSPOSE transB, const blasint M, const blasint N, const blasint K,
+         const float alpha, const float* A, const blasint lda, const float* B, const blasint ldb, const float beta) {
+            cblas_sgemm(
+                CblasRowMajor, transA, transB,
+                M, N, K,
+                alpha,
+                A, lda,
+                B, ldb,
+                beta,
+                this->ptr(), static_cast<int>(this->dim(1))
+            );
         }
     };
 }

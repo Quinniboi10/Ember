@@ -3,7 +3,6 @@
 #include "tensor.h"
 
 #include <utility>
-#include <cblas.h>
 #include <string>
 #include <thread>
 
@@ -128,29 +127,12 @@ namespace Ember {
             // Fill values in the current layer
             void forward(const Layer& previous) override {
                 const usize batchSize = values.dim(0);
-                const usize inputSize = previous.values.size() / batchSize;
                 const usize outputSize = values.size() / batchSize;
 
                 for (usize i = 0; i < batchSize; i++)
                     std::memcpy(&values[i, 0], biases.ptr(), outputSize * sizeof(float));
 
-                // Batched matmul across all
-                cblas_sgemm(
-                    CblasRowMajor,
-                    CblasNoTrans,  // previous.values: batch x inputSize
-                    CblasTrans,    // weights: inputSize x outputSize
-                    static_cast<int>(batchSize),
-                    static_cast<int>(outputSize),
-                    static_cast<int>(inputSize),
-                    1.0f,
-                    previous.values.ptr(),
-                    static_cast<int>(inputSize),
-                    weights.ptr(),
-                    static_cast<int>(inputSize),
-                    1.0f,
-                    values.ptr(),
-                    static_cast<int>(outputSize)
-                );
+                values.madd(previous.values, weights, false, true);
             }
 
             // Returns gradInput, weightGrad, biasGrad
@@ -164,40 +146,10 @@ namespace Ember {
                 Tensor biasGrad(outputSize);
 
                 // gradInput = (batch x outputSize) * (outputSize x inputSize)
-                cblas_sgemm(
-                    CblasRowMajor,
-                    CblasNoTrans,   // A = gradOutput
-                    CblasNoTrans,   // B = weights
-                    static_cast<int>(batchSize),
-                    static_cast<int>(inputSize),
-                    static_cast<int>(outputSize),
-                    1.0f,
-                    gradOutput.ptr(),
-                    static_cast<int>(outputSize),
-                    weights.ptr(),
-                    static_cast<int>(inputSize),
-                    0.0f,
-                    gradInput.ptr(),
-                    static_cast<int>(inputSize)
-                );
+                gradInput.madd(gradOutput, weights);
 
                 // weightGrad = (outputSize x batch) * (batch x inputSize)
-                cblas_sgemm(
-                    CblasRowMajor,
-                    CblasTrans,     // A = gradOutput
-                    CblasNoTrans,   // B = previous.values
-                    static_cast<int>(outputSize),
-                    static_cast<int>(inputSize),
-                    static_cast<int>(batchSize),
-                    1.0f,
-                    gradOutput.ptr(),
-                    static_cast<int>(outputSize),
-                    previous.values.ptr(),
-                    static_cast<int>(inputSize),
-                    0.0f,
-                    weightGrad.ptr(),
-                    static_cast<int>(inputSize)
-                );
+                weightGrad.madd(gradOutput, previous.values, true, false);
 
                 // Sum over batch of gradOutput
                 for (usize i = 0; i < batchSize; i++)

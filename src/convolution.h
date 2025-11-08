@@ -95,7 +95,7 @@ namespace Ember::layers {
                                 for (usize kx = 0; kx < kernelSize; kx++) {
                                     const usize ix = ox * stride + kx;
                                     const usize iy = oy * stride + ky;
-                                    rowPtr[idx++] = previous.values[i, ix, iy];
+                                    rowPtr[idx++] = previous.values[i, ix, iy, ch];
                                 }
                             }
                         }
@@ -149,7 +149,7 @@ namespace Ember::layers {
                             for (usize kx = 0; kx < kernelSize; kx++) {
                                 const usize ix = ox * stride + kx;
                                 const usize iy = oy * stride + ky;
-                                rowPtr[idx++] = previous.values[i, ix, iy];
+                                rowPtr[idx++] = previous.values[i, ix, iy, ch];
                             }
                         }
                     }
@@ -162,17 +162,16 @@ namespace Ember::layers {
             // gradOutput: (rows x numKernels)
             // localPatch: (rows x cols)
             // weightGrad: (numKernels x cols)
-            cblas_sgemm(
-                CblasRowMajor, CblasTrans, CblasNoTrans,
+            weightGrad.madd(
+                CblasTrans, CblasNoTrans,
                 numKernels, cols, rows,
                 1.0f,
                 goPtr, numKernels,
                 localPatch.data(), cols,
-                (i == 0 ? 0.0f : 1.0f),
-                weightGrad.ptr(), cols
+                (i == 0 ? 0.0f : 1.0f)
             );
 
-            cblas_sgemm(
+            sgemm(
                 CblasRowMajor, CblasNoTrans, CblasNoTrans,
                 rows, cols, numKernels,
                 1.0f,
