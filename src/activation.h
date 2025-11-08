@@ -22,6 +22,20 @@ namespace Ember {
             }
         };
 
+        struct CReLU : internal::NonComputeLayer {
+            void forward(const Layer& previous) override;
+
+            Tensor backward(const Layer& previous, const Tensor& gradOutput) const override;
+
+            std::unique_ptr<Layer> clone() override {
+                return std::make_unique<CReLU>(*this);
+            }
+
+            std::string str() const override {
+                return fmt::format("Clipped ReLU - {}", dims());
+            }
+        };
+
         struct Softmax : internal::NonComputeLayer {
             void forward(const Layer& previous) override;
 

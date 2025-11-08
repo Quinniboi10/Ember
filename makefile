@@ -34,6 +34,7 @@ EXE      ?= Ember$(EXE_EXT)
 
 # Source and object files
 SRCS     := $(wildcard ./src/*.cpp)
+SRCS     += $(wildcard ./src/*/*.cpp)
 SRCS     += ./external/fmt/format.cpp
 OBJS     := $(SRCS:.cpp=.o)
 DEPS     := $(OBJS:.o=.d)

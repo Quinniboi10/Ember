@@ -1,14 +1,22 @@
 #include "activation.h"
 
+#include <algorithm>
+
 namespace Ember {
     namespace internal::activations {
         float ReLU(const float x) {
             return std::max(x, 0.0f);
         }
+        float CReLU(const float x) {
+            return std::clamp(x, 0.0f, 1.0f);
+        }
 
         namespace derivatives {
             float ReLU(const float x) {
                 return x > 0 ? 1 : 0;
+            }
+            float CReLU(const float x) {
+                return x > 0  && x < 1 ? 1 : 0;
             }
         }
     }
@@ -22,6 +30,19 @@ namespace Ember {
             Tensor result(gradOutput.dims());
             for (usize prev = 0; prev < gradOutput.size(); prev++)
                 result.data[prev] = gradOutput.data[prev] * internal::activations::derivatives::ReLU(previous.values.data[prev]);
+
+            return result;
+        }
+
+
+        void CReLU::forward(const Layer& previous) {
+            for (usize prev = 0; prev < previous.values.size(); prev++)
+                values.data[prev] = internal::activations::CReLU(previous.values.data[prev]);
+        }
+        Tensor CReLU::backward(const Layer& previous, const Tensor& gradOutput) const {
+            Tensor result(gradOutput.dims());
+            for (usize prev = 0; prev < gradOutput.size(); prev++)
+                result.data[prev] = gradOutput.data[prev] * internal::activations::derivatives::CReLU(previous.values.data[prev]);
 
             return result;
         }

@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+#include <sstream>
+
 namespace Ember {
     // Formats a number with commas
     inline std::string formatNum(const i64 v) {
@@ -16,5 +18,20 @@ namespace Ember {
         }
 
         return s;
+    }
+
+    inline std::vector<std::string> split(const std::string& str, const char delim) {
+        std::vector<std::string> result;
+
+        std::istringstream stream(str);
+
+        for (std::string token{}; std::getline(stream, token, delim);) {
+            if (token.empty())
+                continue;
+
+            result.push_back(token);
+        }
+
+        return result;
     }
 }

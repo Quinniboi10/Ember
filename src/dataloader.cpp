@@ -38,16 +38,11 @@ std::vector<float> loadGreyscaleImage(const std::string& path, const Ember::usiz
 }
 
 namespace Ember::dataloaders {
-    ImageDataLoader::ImageDataLoader(const std::string& dataDir, const u64 batchSize, const float trainSplit, const u64 threads, const usize width, const usize height)
-        : DataLoader(batchSize, trainSplit, threads) {
-        this->width = width;
-        this->height = height;
-
+    ImageDataLoader::ImageDataLoader(const std::string& dataDir, const u64 batchSize, const u64 threads, const float trainSplit, const usize width, const usize height)
+        : DataLoader(batchSize, threads), dataDir(dataDir), trainSplit(trainSplit), width(width), height(height) {
         fmt::println("Attempting to open data dir '{}'", dataDir);
         if (!std::filesystem::exists(dataDir) || !std::filesystem::is_directory(dataDir))
             exitWithMsg("Data directory does not exist or is not a directory: " + dataDir, 1);
-
-        this->dataDir = dataDir;
 
         for (const auto &entry: std::filesystem::directory_iterator(this->dataDir)) {
             if (entry.is_directory())
@@ -95,7 +90,7 @@ namespace Ember::dataloaders {
 
         std::vector<std::vector<internal::DataPoint>> localData(threads);
 
-        #pragma omp parallel for num_threads(threads)
+        #pragma omp parallel for num_threads(std::max<usize>(threads, 1))
         for (usize i = 0; i < batchSize; i++) {
             std::mt19937 rng{ std::random_device{}() + omp_get_thread_num()};
 
@@ -141,5 +136,23 @@ namespace Ember::dataloaders {
                 idx++;
             }
         }
+    }
+
+    u64 ImageDataLoader::countCorrect(const Tensor& output, const Tensor& target) {
+        u64 numCorrect = 0;
+
+        for (usize i = 0; i < target.dim(0); i++) {
+            usize guess = 0;
+            usize goal = 0;
+            for (usize j = 0; j < target.dim(1); j++) {
+                if (output[i, j] > output[i, guess])
+                    guess = j;
+                if (target[i, j] > target[i, goal])
+                    goal = j;
+            }
+            numCorrect += (guess == goal);
+        }
+
+        return numCorrect;
     }
 }
