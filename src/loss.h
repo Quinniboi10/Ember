@@ -20,18 +20,23 @@ namespace Ember {
         };
 
         // Apply sigmoid to the input and target before
-        // calculating the loss
+        // calculating the loss using MSE
         // Modeled by the below function, paste into Desmos to see it
         // f\left(x\right)=\left(\frac{k}{1+e^{\left(a+bx\right)}}\right)
         struct SigmoidMSE : internal::LossFunction {
-            float a = 2.3;
-            float b = -0.17;
-            float k = 3;
+            float a = 1;
+            float b = -0.25;
+            float k = 1;
 
             float offset;
 
-            SigmoidMSE(const float a, const float b, const float k) : a(a), b(b), k(k) { offset = -sigmoid(0); }
-            explicit SigmoidMSE(const float horizontalStretch) { b /= horizontalStretch; }
+            SigmoidMSE(const float a, const float b, const float k) : a(a), b(b), k(k) {
+                offset = -std::pow(sigmoid(0), 2);
+            }
+            explicit SigmoidMSE(const float horizontalStretch) {
+                b /= horizontalStretch;
+                offset = -std::pow(sigmoid(0), 2);
+            }
 
             float sigmoid(const float x) const { return k / (1 + std::exp(a + b * x)); }
 

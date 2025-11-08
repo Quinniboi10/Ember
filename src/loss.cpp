@@ -27,8 +27,8 @@ namespace Ember::loss {
 
         float loss = 0;
         for (usize i = 0; i < output.size(); i++) {
-            const float imprecision = std::abs(output.data[i] - target.data[i]);
-            loss += std::pow(sigmoid(imprecision), 2);
+            const float imprecision = std::abs(sigmoid(output.data[i]) - sigmoid(target.data[i]));
+            loss += std::pow(imprecision, 2);
         }
         return loss / output.size() - offset;
     }
@@ -42,16 +42,15 @@ namespace Ember::loss {
         const float scalar = 2.0f / output.size();
 
         for (usize i = 0; i < output.size(); i++) {
-            const float diff = output.data[i] - target.data[i];
-            const float sign = (diff >= 0.0f) ? 1.0f : -1.0f;
+            const float expOutput = std::exp(a + b * output.data[i]);
+            const float expTarget = std::exp(a + b * target.data[i]);
 
-            const float expTerm = std::exp(a + b * std::abs(diff));
-            const float denominator = 1.0f + expTerm;
-            const float sigmoid = k / denominator;
+            const float fOutput = k / (1.0f + expOutput);
+            const float fTarget = k / (1.0f + expTarget);
 
-            const float grad = -scalar * b * sigmoid * sigmoid * (expTerm / denominator) * sign;
+            const float fprime_out = -k * b * expOutput / ((1.0f + expOutput) * (1.0f + expOutput));
 
-            gradient.data[i] = grad;
+            gradient.data[i] = scalar * (fOutput - fTarget) * fprime_out;
         }
 
         return gradient;
