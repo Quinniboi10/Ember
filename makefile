@@ -60,12 +60,14 @@ endif
 
 # Debug build
 .PHONY: debug
-debug: CXXFLAGS = -O3 -std=c++23 -flto -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
+debug: CXXFLAGS   = -O3 -std=c++23 -flto -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
+debug: LINKFLAGS += -rdynamic
 debug: all
 
 # Debug build
 .PHONY: sanitize
-sanitize: CXXFLAGS = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
+sanitize: CXXFLAGS   = -O3 -std=c++23 -flto -fsanitize=address,undefined -fno-omit-frame-pointer -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -DBOOST_STACKTRACE_USE_ADDR2LINE -ggdb -Wall -Wextra
+sanitize: LINKFLAGS += -rdynamic
 sanitize: all
 
 # Debug build

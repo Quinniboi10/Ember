@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <cstdint>
+#include <cstring>
+#include <vector>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -69,4 +71,78 @@ namespace Ember {
 
         static inline UnicodeTerminalInitializer unicodeTerminalInitializer;
     }
+
+    template <typename T>
+    struct UnifiedVector {
+        static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable for UnifiedVector");
+
+        usize size = 0;
+        T* data = nullptr;
+
+        UnifiedVector() = default;
+
+        explicit UnifiedVector(const usize size) : size(size) {
+            data = static_cast<T*>(aligned_alloc(64, sizeof(T) * size));
+            std::memset(data, 0, sizeof(T) * size);
+        }
+
+        UnifiedVector(const std::vector<T>& other) {
+            resize(other.size());
+            std::memcpy(data, other.data(), sizeof(T) * size);
+        }
+
+        UnifiedVector(const UnifiedVector& other) : size(other.size) {
+            if (size > 0) {
+                data = static_cast<T*>(aligned_alloc(64, sizeof(T) * size));
+                std::memcpy(data, other.data, sizeof(T) * size);
+            }
+            else
+                data = nullptr;
+        }
+
+        UnifiedVector(UnifiedVector&& other) noexcept : size(other.size), data(other.data) {
+            other.size = 0;
+            other.data = nullptr;
+        }
+
+        ~UnifiedVector() { if (data) free(data); }
+
+        void resize(const usize newSize) {
+            if (newSize != size) {
+                if (data)
+                    free(data);
+                data = static_cast<T*>(aligned_alloc(64, sizeof(T) * newSize));
+                size = newSize;
+
+                std::memset(data, 0, sizeof(T) * size);
+            }
+        }
+
+        T* begin() noexcept { return data; }
+        const T* begin() const noexcept { return data; }
+        T* end() noexcept { return data + size; }
+        const T* end() const noexcept { return data + size; }
+
+        T& operator[](const usize i) { return data[i]; }
+        const T& operator[](const usize i) const { return data[i]; }
+
+        UnifiedVector& operator=(const UnifiedVector& other) noexcept {
+            if (this != &other) {
+                resize(other.size);
+                std::memcpy(data, other.data, sizeof(T) * size);
+            }
+            return *this;
+        }
+        UnifiedVector& operator=(UnifiedVector&& other) noexcept {
+            if (this != &other) {
+                if (data)
+                    free(data);
+                size = other.size;
+                data = other.data;
+                other.size = 0;
+                other.data = nullptr;
+            }
+            return *this;
+        }
+    };
 }

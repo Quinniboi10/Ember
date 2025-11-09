@@ -398,7 +398,6 @@ namespace Ember::chess {
     std::ostream& operator<<(std::ostream& os, const Board& board) {
         os << "\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n";
 
-        usize line = 1;
         for (i32 rank = (board.stm == WHITE) * 7; (board.stm == WHITE) ? rank >= 0 : rank < 8; (board.stm == WHITE) ? rank-- : rank++) {
             os << "\u2502 ";
             for (usize file = 0; file < 8; file++) {

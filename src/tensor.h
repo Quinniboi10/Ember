@@ -9,7 +9,7 @@
 #include <array>
 
 namespace Ember {
-    #define sgemm cblas_sgemm;
+    #define sgemm(a, b, c, d, e, f, g, h, i, k, l, m, o, p) cblas_sgemm(a, b, c, d, e, f, g, h, i, k, l, m, o, p);
 
     namespace internal {
         template <typename T>
@@ -20,8 +20,9 @@ namespace Ember {
         usize dimensionality;
 
         std::vector<usize> dimensions;
-        std::vector<float> data;
         std::vector<usize> strides;
+
+        UnifiedVector<float> data;
 
         Tensor() = default;
 
@@ -90,10 +91,10 @@ namespace Ember {
             resize(newSizes);
         }
 
-        float* ptr() { return data.data(); }
-        const float* ptr() const { return data.data(); }
+        float* ptr() { return data.data; }
+        const float* ptr() const { return data.data; }
 
-        usize size() const { return data.size(); }
+        usize size() const { return data.size; }
         auto begin() { return data.begin(); }
         auto begin() const { return data.begin(); }
         auto end() { return data.end(); }
@@ -128,7 +129,7 @@ namespace Ember {
                 u64 size = 1;
                 for (const usize d : dimensions)
                     size *= d;
-                assert(data.size() == size);
+                assert(data.size == size);
             #endif
 
             calculateStrides();
@@ -172,7 +173,6 @@ namespace Ember {
             return data[idx];
         }
 
-
         // Matrix operations
 
         // Compute a * b then add to the current tensor
@@ -208,7 +208,7 @@ namespace Ember {
             const int ldc = static_cast<int>(this->dim(1));
 
             // Perform C = op(A) * op(B) + C
-            cblas_sgemm(
+            sgemm(
                 CblasRowMajor,
                 transA, transB,
                 M, N, K,
@@ -222,7 +222,7 @@ namespace Ember {
         // Compute a * b then add to the current tensor
         void madd(const CBLAS_TRANSPOSE transA, const CBLAS_TRANSPOSE transB, const blasint M, const blasint N, const blasint K,
          const float alpha, const float* A, const blasint lda, const float* B, const blasint ldb, const float beta) {
-            cblas_sgemm(
+            sgemm(
                 CblasRowMajor, transA, transB,
                 M, N, K,
                 alpha,

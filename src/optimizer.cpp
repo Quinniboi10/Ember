@@ -79,9 +79,9 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                assert(weightVelocities[lIdx].data.size() == layer->weights.data.size());
+                assert(weightVelocities[lIdx].size() == layer->weights.size());
                 assert(biasVelocities[lIdx].size() == layer->biases.size());
-                assert(weightGradients[lIdx].data.size() == layer->weights.data.size());
+                assert(weightGradients[lIdx].size() == layer->weights.size());
                 assert(biasGradients[lIdx].size() == layer->biases.size());
 
                 // Update weights with momentum
@@ -136,9 +136,9 @@ namespace Ember {
                 if (!layer)
                     continue;
 
-                assert(weightVelocities[lIdx].data.size() == layer->weights.data.size());
+                assert(weightVelocities[lIdx].size() == layer->weights.size());
                 assert(biasVelocities[lIdx].size() == layer->biases.size());
-                assert(weightGradients[lIdx].data.size() == layer->weights.data.size());
+                assert(weightGradients[lIdx].size() == layer->weights.size());
                 assert(biasGradients[lIdx].size() == layer->biases.size());
 
                 // Update weights
