@@ -19,14 +19,10 @@ namespace Ember {
                 auto [gradInput, weightGrad, biasGrad] = compLayer->backward(*net.layers[idx - 1], error);
 
                 // Weights
-                cblas_saxpy(optimizer.weightGradients[idx].size(), batchScalar,
-                            weightGrad.ptr(), 1,
-                            optimizer.weightGradients[idx].ptr(), 1);
+                optimizer.weightGradients[idx].axpy(batchScalar, weightGrad);
 
                 // Biases
-                cblas_saxpy(optimizer.biasGradients[idx].size(), batchScalar,
-                            biasGrad.ptr(), 1,
-                            optimizer.biasGradients[idx].ptr(), 1);
+                optimizer.biasGradients[idx].axpy(batchScalar, biasGrad);
 
                 error = std::move(gradInput);
             }

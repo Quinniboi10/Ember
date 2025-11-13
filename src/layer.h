@@ -2,6 +2,8 @@
 
 #include "tensor.h"
 
+#include "../external/fmt/format.h"
+
 #include <utility>
 #include <string>
 #include <thread>
@@ -24,6 +26,10 @@ namespace Ember {
 
             virtual void setBatchSize(const usize batchSize) {
                 values.setDimension(0, batchSize);
+            }
+
+            virtual void to(const Device device) {
+                values.to(device);
             }
 
             virtual void forward(const Layer& previous) = 0;
@@ -58,6 +64,12 @@ namespace Ember {
 
             void init(const Tensor& previous) override {
                 this->weights.resize(values.size(), previous.size());
+            }
+
+            void to(const Device device) override {
+                values.to(device);
+                weights.to(device);
+                biases.to(device);
             }
 
             virtual std::tuple<Tensor, Tensor, Tensor> backward(const Layer& previous, const Tensor& gradOutput) const = 0;
@@ -103,7 +115,7 @@ namespace Ember {
                 originalDimensions[0] = batchSize;
             }
 
-            void forward(const Layer& previous) override { values.data = previous.values.data; }
+            void forward(const Layer& previous) override { values.data() = previous.values.data(); }
             Tensor backward([[maybe_unused]] const Layer& previous, const Tensor& gradOutput) const override {
                 Tensor reshapedGrad = gradOutput;
                 reshapedGrad.reshape(originalDimensions);
@@ -130,7 +142,7 @@ namespace Ember {
                 const usize outputSize = values.size() / batchSize;
 
                 for (usize i = 0; i < batchSize; i++)
-                    std::memcpy(&values[i, 0], biases.ptr(), outputSize * sizeof(float));
+                    internal::memcpy(values.getDevice(), &values(i, 0), biases.ptr(), outputSize * sizeof(float));
 
                 values.madd(previous.values, weights, false, true);
             }
@@ -154,7 +166,7 @@ namespace Ember {
                 // Sum over batch of gradOutput
                 for (usize i = 0; i < batchSize; i++)
                     for (usize j = 0; j < outputSize; j++)
-                        biasGrad[j] += gradOutput[i, j];
+                        biasGrad(j) += gradOutput(i, j);
 
                 return { gradInput, weightGrad, biasGrad };
             }

@@ -2,27 +2,97 @@
 
 #include "types.h"
 
-#include "../external/fmt/format.h"
-
 #include <cblas.h>
 #include <vector>
 #include <array>
 
 namespace Ember {
-    #define sgemm(a, b, c, d, e, f, g, h, i, k, l, m, o, p) cblas_sgemm(a, b, c, d, e, f, g, h, i, k, l, m, o, p);
-
+    enum Device { CPU, GPU };
     namespace internal {
+        void sgemmDispatch(
+            Device device,
+            bool transA, bool transB,
+            int M, int N, int K,
+            float alpha,
+            const float* A, int lda,
+            const float* B, int ldb,
+            float beta,
+            float* C, int ldc);
+
+        extern Device device;
+
+        void memcpy(Device device, void* dest, const void* src, usize size);
+
+        void* malloc(Device device, usize size);
+        void free(Device device, void* ptr);
+
+        struct SharedVector {
+            Device loc = CPU;
+            float* data = nullptr;
+
+            usize size = 0;
+
+            SharedVector() = default;
+            // Returns a GPU tensor if available
+            explicit SharedVector(const usize size);
+            // Always returns a CPU tensor
+            SharedVector(const std::vector<float>& other);
+
+            SharedVector(const SharedVector& other);
+            SharedVector(SharedVector&& other) noexcept : loc(other.loc), data(other.data), size(other.size) {
+                other.size = 0;
+                other.data = nullptr;
+            }
+
+            ~SharedVector() {
+                if (data)
+                    free(loc, data);
+            }
+
+            void resize(const usize newSize);
+
+            float* begin() noexcept { return data; }
+            const float* begin() const noexcept { return data; }
+            float* end() noexcept { return data + size; }
+            const float* end() const noexcept { return data + size; }
+
+            float& operator[](const usize i) {
+                assert(i < size);
+                return data[i];
+            }
+            const float& operator[](const usize i) const {
+                assert(i < size);
+                return data[i];
+            }
+
+            SharedVector& operator=(const SharedVector& other) noexcept;
+            SharedVector& operator=(SharedVector&& other) noexcept {
+                if (this != &other) {
+                    if (data)
+                        free(loc, data);
+                    size = other.size;
+                    data = other.data;
+                    other.size = 0;
+                    other.data = nullptr;
+                }
+                return *this;
+            }
+
+            void moveTo(Device target);
+        };
+
         template <typename T>
         concept UsizeLike = std::is_same_v<std::decay_t<T>, usize>;
     }
 
-    struct Tensor {
+    class Tensor {
+        internal::SharedVector underlying;
+
+    public:
         usize dimensionality;
 
         std::vector<usize> dimensions;
         std::vector<usize> strides;
-
-        UnifiedVector<float> data;
 
         Tensor() = default;
 
@@ -30,7 +100,7 @@ namespace Ember {
         explicit Tensor(const Args... args) {
             dimensionality = sizeof...(Args);
             dimensions = { args... };
-            data.resize((args * ...));
+            underlying.resize((args * ...));
             calculateStrides();
         }
 
@@ -40,7 +110,7 @@ namespace Ember {
             u64 size = 1;
             for (const usize d : dimensions)
                 size *= d;
-            data.resize(size);
+            underlying.resize(size);
             calculateStrides();
         }
 
@@ -48,7 +118,7 @@ namespace Ember {
             dimensionality = 1;
             dimensions.resize(1);
             dimensions[0] = input.size();
-            data = input;
+            underlying = input;
             calculateStrides();
         }
 
@@ -56,7 +126,7 @@ namespace Ember {
         void resize(Args... args) {
             dimensionality = sizeof...(Args);
             dimensions = { args... };
-            data.resize((args * ...));
+            underlying.resize((args * ...));
             calculateStrides();
         }
 
@@ -67,7 +137,7 @@ namespace Ember {
             u64 size = 1;
             for (const usize d : dimensions)
                 size *= d;
-            data.resize(size);
+            underlying.resize(size);
             calculateStrides();
         }
 
@@ -78,7 +148,7 @@ namespace Ember {
             u64 size = 1;
             for (const usize d : dimensions)
                 size *= d;
-            data.resize(size);
+            underlying.resize(size);
             calculateStrides();
         }
 
@@ -91,17 +161,17 @@ namespace Ember {
             resize(newSizes);
         }
 
-        float* ptr() { return data.data; }
-        const float* ptr() const { return data.data; }
+        float* ptr() { return underlying.data; }
+        const float* ptr() const { return underlying.data; }
 
-        usize size() const { return data.size; }
-        auto begin() { return data.begin(); }
-        auto begin() const { return data.begin(); }
-        auto end() { return data.end(); }
-        auto end() const { return data.end(); }
+        usize size() const { return underlying.size; }
+        auto begin() { return underlying.begin(); }
+        auto begin() const { return underlying.begin(); }
+        auto end() { return underlying.end(); }
+        auto end() const { return underlying.end(); }
 
         void fill(const float value) {
-            std::fill(data.begin(), data.end(), value);
+            std::fill(underlying.begin(), underlying.end(), value);
         }
 
         void calculateStrides() {
@@ -129,48 +199,62 @@ namespace Ember {
                 u64 size = 1;
                 for (const usize d : dimensions)
                     size *= d;
-                assert(data.size == size);
+                assert(underlying.size == size);
             #endif
 
             calculateStrides();
         }
 
-        float& operator[](const usize i) {
+        internal::SharedVector& data() {
+            assert(underlying.loc == CPU);
+            return underlying;
+        }
+
+        const internal::SharedVector& data() const {
+            assert(underlying.loc == CPU);
+            return underlying;
+        }
+
+        void to(const Device device) { underlying.moveTo(device); }
+
+        Device getDevice() const { return underlying.loc; }
+
+        float& operator()(const usize i) {
             assert(dimensionality == 1);
-            return data[i];
+            return underlying[i];
         }
 
-        const float& operator[](const usize i) const {
+        const float& operator()(const usize i) const {
             assert(dimensionality == 1);
-            return data[i];
+            return underlying[i];
         }
 
-        float& operator[](const usize i, const usize j) {
+        float& operator()(const usize i, const usize j) {
             assert(dimensionality == 2);
-            return data[i * strides[0] + j];
+            return underlying[i * strides[0] + j];
         }
 
-        const float& operator[](const usize i, const usize j) const {
+        const float& operator()(const usize i, const usize j) const {
             assert(dimensionality == 2);
-            return data[i * strides[0] + j];
+            return underlying[i * strides[0] + j];
         }
 
         template<typename... Args>
-        float& operator[](Args... args) {
+        float& operator()(Args... args) {
             assert(sizeof...(Args) == dimensionality);
             usize idx = 0;
             usize strideIdx = 0;
             ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
-            return data[idx];
+            return underlying[idx];
         }
 
         template<typename... Args>
-        const float& operator[](Args... args) const {
+        const float& operator()(Args... args) const {
             assert(sizeof...(Args) == dimensionality);
             usize idx = 0;
             usize strideIdx = 0;
             ((idx += static_cast<usize>(args) * strides[strideIdx++]), ...);
-            return data[idx];
+            return underlying[idx];
         }
 
         // Matrix operations
@@ -178,52 +262,14 @@ namespace Ember {
         // Compute a * b then add to the current tensor
         void madd(const Tensor& a, const Tensor& b) { madd(a, b, false, false); }
         // Compute a * b then add to the current tensor
-        void madd(const Tensor& a, const Tensor& b, const bool transposeA, const bool transposeB) {
-            assert(dimensionality == 2);
-            assert(a.dimensionality == 2);
-            assert(b.dimensionality == 2);
+        void madd(const Tensor& a, const Tensor& b, const bool transposeA, const bool transposeB);
 
-            // Logical dimensions for op(A) and op(B)
-            const usize aRows = transposeA ? a.dim(1) : a.dim(0);
-            const usize aCols = transposeA ? a.dim(0) : a.dim(1);
-            const usize bRows = transposeB ? b.dim(1) : b.dim(0);
-            const usize bCols = transposeB ? b.dim(0) : b.dim(1);
-
-            // Ensure dimensions are compatible for C = op(A) * op(B) + C
-            assert(aCols == bRows);
-            assert(this->dim(0) == aRows);
-            assert(this->dim(1) == bCols);
-
-            // Matrix multiplication parameters
-            const int M = static_cast<int>(this->dim(0)); // rows of C / op(A)
-            const int N = static_cast<int>(this->dim(1)); // cols of C / op(B)
-            const int K = static_cast<int>(aCols);            // inner dimension
-
-            const auto transA = transposeA ? CblasTrans : CblasNoTrans;
-            const auto transB = transposeB ? CblasTrans : CblasNoTrans;
-
-            // Leading dimensions assuming row major
-            const int lda = static_cast<int>(a.dim(1));
-            const int ldb = static_cast<int>(b.dim(1));
-            const int ldc = static_cast<int>(this->dim(1));
-
-            // Perform C = op(A) * op(B) + C
-            sgemm(
-                CblasRowMajor,
-                transA, transB,
-                M, N, K,
-                1.0f,
-                a.ptr(), lda,
-                b.ptr(), ldb,
-                1.0f,
-                this->ptr(), ldc
-            );
-        }
         // Compute a * b then add to the current tensor
-        void madd(const CBLAS_TRANSPOSE transA, const CBLAS_TRANSPOSE transB, const blasint M, const blasint N, const blasint K,
-         const float alpha, const float* A, const blasint lda, const float* B, const blasint ldb, const float beta) {
-            sgemm(
-                CblasRowMajor, transA, transB,
+        void madd(const bool transA, const bool transB, const int M, const int N, const int K,
+         const float alpha, const float* A, const int lda, const float* B, const int ldb, const float beta) {
+            internal::sgemmDispatch(
+                underlying.loc,
+                transA, transB,
                 M, N, K,
                 alpha,
                 A, lda,
@@ -232,5 +278,7 @@ namespace Ember {
                 this->ptr(), static_cast<int>(this->dim(1))
             );
         }
+
+        void axpy(const float scalar, const Tensor& other);
     };
 }

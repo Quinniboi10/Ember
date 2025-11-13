@@ -1,3 +1,7 @@
+#pragma once
+
+static_assert(false && "Maxpool layers are disabled as of present until issues with GPU compatibility are eventually sorted out");
+
 #include "layer.h"
 #include <limits>
 
@@ -56,7 +60,7 @@ namespace Ember::layers {
                                     const usize ix = ox * stride + kx;
                                     const usize iy = oy * stride + ky;
 
-                                    const float v = previous.values[b, ix, iy, c];
+                                    const float v = previous.values(b, ix, iy, c);
                                     if (v > bestVal) {
                                         bestVal = v;
                                         bestIdxX = ix;
@@ -65,7 +69,7 @@ namespace Ember::layers {
                                 }
                             }
 
-                            values[b, ox, oy, c] = bestVal;
+                            values(b, ox, oy, c) = bestVal;
                             const usize flatOut = b * outX * outY * numChannels
                                                 + c * outX * outY
                                                 + oy * outX
@@ -117,7 +121,7 @@ namespace Ember::layers {
                             const usize iy = rem2 / x;
                             const usize ix = rem2 % x;
 
-                            gradInput[bc, ix, iy, cc] += gradOutput[b, ox, oy, c];
+                            gradInput(bc, ix, iy, cc) += gradOutput(b, ox, oy, c);
                         }
                     }
                 }

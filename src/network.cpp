@@ -4,6 +4,13 @@
 #include "util.h"
 
 namespace Ember {
+    void Network::to(const Device device) {
+        for (usize i = 1; i < layers.size(); i++)
+            layers[i]->to(device);
+
+        loc = device;
+    }
+
     void Network::forward(const Tensor& input, const usize threads) {
         assert(input.dimensionality == 2);
         openblas_set_num_threads(threads);
@@ -13,10 +20,16 @@ namespace Ember {
 
         assert(input.dim(1) == layers[0]->values.size() / layers[0]->values.dim(0));
 
-        layers[0]->values.data = input.data;
+        layers[0]->values.data() = input.data();
+
+        for (usize i = 0; i < layers.size(); i++)
+            layers[i]->to(loc);
 
         for (usize i = 1; i < layers.size(); i++)
             layers[i]->forward(*layers[i - 1]);
+
+        for (usize i = 0; i < layers.size(); i++)
+            layers[i]->to(CPU);
     }
 
     const Tensor& Network::output() const {

@@ -1,5 +1,7 @@
 #pragma once
 
+static_assert(false && "Convolution layers are disabled as of present until issues with GPU compatibility are eventually sorted out");
+
 #include "types.h"
 #include "layer.h"
 
@@ -26,10 +28,10 @@ namespace Ember::layers {
         usize cols;
         usize inputChannels;
 
-        std::vector<float> patchMatrix;
+        internal::SharedVector patchMatrix;
 
-        mutable std::vector<float> colGrad;
-        mutable std::vector<float> localPatch;
+        mutable internal::SharedVector colGrad;
+        mutable internal::SharedVector localPatch;
 
         Convolution(const usize numKernels, const usize kernelSize, const usize stride = 1) : ComputeLayer(0), numKernels(numKernels), kernelSize(kernelSize), stride(stride) {
             outX = outY = 0;
@@ -75,7 +77,7 @@ namespace Ember::layers {
                 for (usize ox = 0; ox < outX; ox++) {
                     for (usize oy = 0; oy < outY; oy++) {
                         for (usize j = 0; j < numKernels; j++) {
-                            values[i, ox, oy, j] = biases[j];
+                            values(i, ox, oy, j) = biases(j);
                         }
                     }
                 }
@@ -95,7 +97,7 @@ namespace Ember::layers {
                                 for (usize kx = 0; kx < kernelSize; kx++) {
                                     const usize ix = ox * stride + kx;
                                     const usize iy = oy * stride + ky;
-                                    rowPtr[idx++] = previous.values[i, ix, iy, ch];
+                                    rowPtr[idx++] = previous.values(i, ix, iy, ch);
                                 }
                             }
                         }
@@ -104,14 +106,15 @@ namespace Ember::layers {
                 }
 
                 // Run the matrix math
-                cblas_sgemm(
-                    CblasRowMajor, CblasNoTrans, CblasTrans,
+                internal::sgemmDispatch(
+                    CPU,
+                    false, true,
                     rows, numKernels, cols,
                     1.0f,
-                    patchMatrix.data(), cols,
+                    patchMatrix.data, cols,
                     weights.ptr(), cols,
                     1.0f,
-                    &values[i, 0, 0, 0], numKernels
+                    &values(i, 0, 0, 0), numKernels
                 );
             }
         }
@@ -132,8 +135,8 @@ namespace Ember::layers {
                 float sum = 0.0f;
                 for (usize ox = 0; ox < outX; ox++)
                     for (usize oy = 0; oy < outY; oy++)
-                        sum += gradOutput[i, ox, oy, k];
-                biasGrad[k] += sum;
+                        sum += gradOutput(i, ox, oy, k);
+                biasGrad(k) += sum;
             }
         }
 
@@ -149,7 +152,7 @@ namespace Ember::layers {
                             for (usize kx = 0; kx < kernelSize; kx++) {
                                 const usize ix = ox * stride + kx;
                                 const usize iy = oy * stride + ky;
-                                rowPtr[idx++] = previous.values[i, ix, iy, ch];
+                                rowPtr[idx++] = previous.values(i, ix, iy, ch);
                             }
                         }
                     }
@@ -163,22 +166,23 @@ namespace Ember::layers {
             // localPatch: (rows x cols)
             // weightGrad: (numKernels x cols)
             weightGrad.madd(
-                CblasTrans, CblasNoTrans,
+                true, false,
                 numKernels, cols, rows,
                 1.0f,
                 goPtr, numKernels,
-                localPatch.data(), cols,
+                localPatch.data, cols,
                 (i == 0 ? 0.0f : 1.0f)
             );
 
-            sgemm(
-                CblasRowMajor, CblasNoTrans, CblasNoTrans,
+            internal::sgemmDispatch(
+                CPU,
+                false, false,
                 rows, cols, numKernels,
                 1.0f,
                 goPtr, numKernels,
                 weights.ptr(), cols,
                 0.0f,
-                colGrad.data(), cols
+                colGrad.data, cols
             );
 
             // Reconstruct the grad input
@@ -193,7 +197,7 @@ namespace Ember::layers {
                             for (usize kx = 0; kx < kernelSize; kx++) {
                                 const usize ix = ox * stride + kx;
                                 const usize iy = oy * stride + ky;
-                                gradInput[i, ix, iy, ch] += rowPtr[idx++];
+                                gradInput(i, ix, iy, ch) += rowPtr[idx++];
                             }
                         }
                     }

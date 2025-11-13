@@ -14,12 +14,15 @@ std::vector<float> loadGreyscaleImage(const std::string& path, const Ember::usiz
     if (!data)
         throw std::runtime_error("Failed to load image: " + path);
 
-    std::vector<float> vec(width * height);
+    const Ember::usize outW = (w == 0) ? static_cast<Ember::usize>(width)  : w;
+    const Ember::usize outH = (h == 0) ? static_cast<Ember::usize>(height) : h;
 
-    if ((w == static_cast<Ember::usize>(width) || w == 0) && (h == static_cast<Ember::usize>(height) || h == 0)) {
-        for (Ember::usize i = 0; i < width * height; i++)
+    std::vector<float> vec(outW * outH);
+
+
+    if (outW == static_cast<Ember::usize>(width) && outH == static_cast<Ember::usize>(height))
+        for (Ember::usize i = 0; i < vec.size(); ++i)
             vec[i] = data[i] / 255.0f;
-    }
     else {
         // Simple nearest-neighbor resize
         for (Ember::usize y = 0; y < h; ++y) {
@@ -106,8 +109,8 @@ namespace Ember::dataloaders {
             std::vector<float> target(types.size(), 0);
             target[typeIdx] = 1;
 
-            std::memcpy(&data[batchIdx].input[i, 0], input.data(), sizeof(float) * input.size());
-            std::memcpy(&data[batchIdx].target[i, 0], target.data(), sizeof(float) * target.size());
+            std::memcpy(&data[batchIdx].input(i, 0), input.data(), sizeof(float) * input.size());
+            std::memcpy(&data[batchIdx].target(i, 0), target.data(), sizeof(float) * target.size());
         }
     }
 
@@ -130,8 +133,8 @@ namespace Ember::dataloaders {
                 std::vector<float> target(types.size(), 0.0f);
                 target[typeIdx] = 1.0f;
 
-                std::memcpy(&data[currBatch].input[idx, 0], input.data(), sizeof(float) * input.size());
-                std::memcpy(&data[currBatch].target[idx, 0], target.data(), sizeof(float) * target.size());
+                std::memcpy(&data[currBatch].input(idx, 0), input.data(), sizeof(float) * input.size());
+                std::memcpy(&data[currBatch].target(idx, 0), target.data(), sizeof(float) * target.size());
 
                 idx++;
             }
@@ -145,9 +148,9 @@ namespace Ember::dataloaders {
             usize guess = 0;
             usize goal = 0;
             for (usize j = 0; j < target.dim(1); j++) {
-                if (output[i, j] > output[i, guess])
+                if (output(i, j) > output(i, guess))
                     guess = j;
-                if (target[i, j] > target[i, goal])
+                if (target(i, j) > target(i, goal))
                     goal = j;
             }
             numCorrect += (guess == goal);

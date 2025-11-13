@@ -86,14 +86,14 @@ namespace Ember {
 
                 // Update weights with momentum
                 for (usize i = 0; i < layer->weights.size(); i++) {
-                    weightVelocities[lIdx].data[i] = momentum * weightVelocities[lIdx].data[i] - lr * weightGradients[lIdx].data[i];
-                    layer->weights.data[i] += weightVelocities[lIdx].data[i];
+                    weightVelocities[lIdx].data()[i] = momentum * weightVelocities[lIdx].data()[i] - lr * weightGradients[lIdx].data()[i];
+                    layer->weights.data()[i] += weightVelocities[lIdx].data()[i];
                 }
 
                 // Update biases with momentum
                 for (usize i = 0; i < layer->biases.size(); i++) {
-                    biasVelocities[lIdx].data[i] = momentum * biasVelocities[lIdx].data[i] - lr * biasGradients[lIdx].data[i];
-                    layer->biases.data[i] += biasVelocities[lIdx].data[i];
+                    biasVelocities[lIdx].data()[i] = momentum * biasVelocities[lIdx].data()[i] - lr * biasGradients[lIdx].data()[i];
+                    layer->biases.data()[i] += biasVelocities[lIdx].data()[i];
                 }
             }
         }
@@ -143,30 +143,30 @@ namespace Ember {
 
                 // Update weights
                 for (usize i = 0; i < layer->weights.size(); i++) {
-                    layer->weights.data[i] *= 1.0f - lr * decay;
+                    layer->weights.data()[i] *= 1.0f - lr * decay;
 
-                    weightMomentum[lIdx].data[i] = beta1 * weightMomentum[lIdx].data[i] + (1.0f - beta1) * weightGradients[lIdx].data[i];
-                    weightVelocities[lIdx].data[i] = beta2 * weightVelocities[lIdx].data[i] + (1.0f - beta2) * weightGradients[lIdx].data[i] * weightGradients[lIdx].data[i];
+                    weightMomentum[lIdx].data()[i] = beta1 * weightMomentum[lIdx].data()[i] + (1.0f - beta1) * weightGradients[lIdx].data()[i];
+                    weightVelocities[lIdx].data()[i] = beta2 * weightVelocities[lIdx].data()[i] + (1.0f - beta2) * weightGradients[lIdx].data()[i] * weightGradients[lIdx].data()[i];
 
                     // Bias correction
-                    const float mHat = weightMomentum[lIdx].data[i] / biasCorr1;
-                    const float vHat = weightVelocities[lIdx].data[i] / biasCorr2;
+                    const float mHat = weightMomentum[lIdx].data()[i] / biasCorr1;
+                    const float vHat = weightVelocities[lIdx].data()[i] / biasCorr2;
 
-                    layer->weights.data[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
+                    layer->weights.data()[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
                 }
 
                 // Update biases
                 for (usize i = 0; i < layer->biases.size(); i++) {
-                    layer->biases.data[i] *= (1.0f - lr * decay);
+                    layer->biases.data()[i] *= (1.0f - lr * decay);
 
-                    biasMomentum[lIdx].data[i] = beta1 * biasMomentum[lIdx].data[i] + (1.0f - beta1) * biasGradients[lIdx].data[i];
-                    biasVelocities[lIdx].data[i] = beta2 * biasVelocities[lIdx].data[i] + (1.0f - beta2) * biasGradients[lIdx].data[i] * biasGradients[lIdx].data[i];
+                    biasMomentum[lIdx].data()[i] = beta1 * biasMomentum[lIdx].data()[i] + (1.0f - beta1) * biasGradients[lIdx].data()[i];
+                    biasVelocities[lIdx].data()[i] = beta2 * biasVelocities[lIdx].data()[i] + (1.0f - beta2) * biasGradients[lIdx].data()[i] * biasGradients[lIdx].data()[i];
 
                     // Bias correction
-                    const float mHat = biasMomentum[lIdx].data[i] / biasCorr1;
-                    const float vHat = biasVelocities[lIdx].data[i] / biasCorr2;
+                    const float mHat = biasMomentum[lIdx].data()[i] / biasCorr1;
+                    const float vHat = biasVelocities[lIdx].data()[i] / biasCorr2;
 
-                    layer->biases.data[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
+                    layer->biases.data()[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
                 }
             }
         }

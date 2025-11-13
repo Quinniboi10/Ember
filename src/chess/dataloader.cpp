@@ -98,8 +98,8 @@ namespace Ember::dataloaders::chess {
 
             std::vector<float> input = board.asInputLayer();
 
-            std::memcpy(&data[batchIdx].input[i, 0], input.data(), sizeof(float) * input.size());
-            data[batchIdx].target[i, 0] = eval * evalScale;
+            std::memcpy(&data[batchIdx].input(i, 0), input.data(), sizeof(float) * input.size());
+            data[batchIdx].target(i, 0) = eval * evalScale;
         }
     }
 
@@ -158,8 +158,8 @@ namespace Ember::dataloaders::chess {
 
             std::vector<float> input = board.asInputLayer();
 
-            std::memcpy(&data[currBatch].input[i, 0], input.data(), sizeof(float) * input.size());
-            data[currBatch].target[i, 0] = eval * evalScale;
+            std::memcpy(&data[currBatch].input(i, 0), input.data(), sizeof(float) * input.size());
+            data[currBatch].target(i, 0) = eval * evalScale;
         }
     }
 
@@ -167,7 +167,7 @@ namespace Ember::dataloaders::chess {
         u64 numCorrect = 0;
 
         for (usize i = 0; i < target.dim(0); i++)
-            numCorrect += (std::round(output[i, 0] / evalScale) == std::round(target[i, 0] / evalScale));
+            numCorrect += (std::round(output(i, 0) / evalScale) == std::round(target(i, 0) / evalScale));
 
         return numCorrect;
     }
