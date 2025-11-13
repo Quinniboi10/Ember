@@ -4,6 +4,31 @@
 #include <cublas_v2.h>
 #endif
 
+#ifdef EMBER_CUDA
+struct HandleManager {
+    cublasHandle_t handle;
+
+    HandleManager() {
+        if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) {
+            fprintf(stderr, "Failed to create cuBLAS handle\n");
+            std::abort();
+        }
+
+        // Enable tensor cores
+        cublasSetMathMode(handle, CUBLAS_TF32_TENSOR_OP_MATH);
+    }
+
+    ~HandleManager() {
+        cublasDestroy(handle);
+    }
+};
+
+auto& getCublasHandle() {
+    static HandleManager hm;
+    return hm.handle;
+}
+#endif
+
 namespace Ember {
     namespace internal {
         void memcpy([[maybe_unused]] Device device, void* dest, const void* src, usize size) {
@@ -77,12 +102,7 @@ namespace Ember {
                     float* C, int ldc) {
 #ifdef EMBER_CUDA
             if (device == GPU) {
-                // CUDA cuBLAS version
-                cublasHandle_t handle;
-                cublasCreate(&handle);
-
                 // cuBLAS uses column major ordering
-
                 cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
                 cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
 
@@ -95,7 +115,7 @@ namespace Ember {
                 }
 
                 cublasSgemm(
-                    handle,
+                    getCublasHandle(),
                     opB, opA,
                     N, M, K,
                     &alpha,
@@ -104,10 +124,6 @@ namespace Ember {
                     &beta,
                     C, ldc
                 );
-
-                cudaDeviceSynchronize();
-
-                cublasDestroy(handle);
             }
             else
                 // CPU OpenBLAS version
@@ -180,10 +196,11 @@ namespace Ember {
 
         void SharedVector::moveTo([[maybe_unused]] const Device target) {
             assert(data);
-#ifdef EMBER_CUDA
+
             if (target == loc)
                 return;
 
+#ifdef EMBER_CUDA
             const usize bytes = sizeof(float) * size;
             float* newPtr = static_cast<float*>(internal::malloc(target, bytes));
 
@@ -191,8 +208,6 @@ namespace Ember {
                 cudaMemcpy(newPtr, data, size, cudaMemcpyDeviceToHost);
             else if (target == GPU)
                 cudaMemcpy(newPtr, data, size, cudaMemcpyHostToDevice);
-
-            cudaDeviceSynchronize();
 
             if (data)
                 free(loc, data);
@@ -261,18 +276,13 @@ namespace Ember {
     void Tensor::axpy(const float scalar, const Tensor& other) {
 #ifdef EMBER_CUDA
         if (underlying.loc == GPU) {
-            cublasHandle_t handle;
-            cublasCreate(&handle);
-
             cublasSaxpy(
-                handle,
+                getCublasHandle(),
                 underlying.size,
                 &scalar,
                 other.ptr(), 1,
                 ptr(), 1
             );
-
-            cublasDestroy(handle);
         }
         else
             cblas_saxpy(
